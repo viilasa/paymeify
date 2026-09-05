@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
+
 import { Sidebar } from "@/components/app/sidebar";
 import { TopBar } from "@/components/app/topbar";
 import { displayName, requireSession } from "@/lib/auth";
 import { countPendingPaymentReports } from "@/lib/data/projects";
+import { noIndexRobots } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  robots: noIndexRobots,
+};
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [{ profile }, pendingPayments] = await Promise.all([

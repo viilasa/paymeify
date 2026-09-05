@@ -1,10 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { SignupForm } from "@/app/(auth)/signup/signup-form";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { publicPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Sign up" };
+export const metadata = publicPageMetadata({
+  title: "Sign up",
+  description:
+    "Create a free Paymeify account. Track milestones, share one client link, and get paid by UPI or Razorpay.",
+  path: "/signup",
+});
 
 export default function SignupPage() {
   return (

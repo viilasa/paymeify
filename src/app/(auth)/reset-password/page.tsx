@@ -3,9 +3,14 @@ import Link from "next/link";
 
 import { ResetPasswordForm } from "@/app/(auth)/reset-password/reset-password-form";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { noIndexRobots } from "@/lib/seo";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Set a new password" };
+export const metadata: Metadata = {
+  title: "Set a new password",
+  robots: noIndexRobots,
+  alternates: { canonical: "/reset-password" },
+};
 
 export default async function ResetPasswordPage() {
   const supabase = await createSupabaseServerClient();

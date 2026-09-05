@@ -1,13 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ClientProjectView } from "@/components/client-portal/client-project-view";
 import { buildView, type PublicProject } from "@/lib/data/public-project";
+import { publicPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = publicPageMetadata({
   title: "Demo project link",
-  description: "See what your client sees when you share a Paymeify project link.",
-};
+  description:
+    "Preview the Paymeify client portal — milestones, UPI QR, and what your client sees when you share a project link. No account required.",
+  path: "/demo",
+});
 
 /** Mirrors supabase/seed.sql so the demo matches local development data. */
 const demoProject: PublicProject = {

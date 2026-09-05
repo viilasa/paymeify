@@ -136,7 +136,11 @@ Sign up at `/signup`, then optionally load the demo project by running
 | Route                     | Who     | Purpose                                        |
 | ------------------------- | ------- | ---------------------------------------------- |
 | `/`                       | Public  | Landing page                                   |
+| `/faq`                    | Public  | Indexed questions for search and AI answers    |
 | `/demo`                   | Public  | Static preview of the client portal            |
+| `/sitemap.xml`            | Public  | Indexable URLs for search engines              |
+| `/robots.txt`             | Public  | Crawl rules; private app and `/p/` are blocked |
+| `/llms.txt`               | Public  | Short product facts for answer engines (GEO)   |
 | `/login`, `/signup`       | Public  | Freelancer auth                                |
 | `/forgot-password`        | Public  | Request a reset link                           |
 | `/reset-password`         | Token   | Set a new password                             |
@@ -233,6 +237,16 @@ Duplicate payment records are prevented by a unique index on
 - **Client input is scrubbed in the database too.** The UPI reference is
   stripped to `[A-Za-z0-9-]` and cut to 64 characters inside the function, on the
   assumption that a caller may skip the app entirely.
+
+## Search and AI discovery
+
+Public marketing pages (`/`, `/faq`, `/demo`, `/signup`, `/login`) are in
+`/sitemap.xml`. Authenticated app routes and private client portals (`/p/…`)
+are `noindex` and listed in `/robots.txt` as disallowed.
+
+`/llms.txt` and `/llms-full.txt` are written for answer engines (GEO): they
+state what Paymeify is, who it is for, how UPI and Razorpay work, and which
+URLs must not be treated as public content.
 
 ## Deploying to Vercel
 
