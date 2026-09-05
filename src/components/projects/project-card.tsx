@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/format";
 import type { ProjectWithTotals } from "@/lib/data/projects";
 
 /** Mobile representation of a project row. */
-export function ProjectCard({ project, totals }: ProjectWithTotals) {
+export function ProjectCard({ project, totals, pendingReports }: ProjectWithTotals) {
   return (
     <Link
       href={`/projects/${project.id}`}
@@ -14,7 +14,14 @@ export function ProjectCard({ project, totals }: ProjectWithTotals) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-medium">{project.name}</p>
+          <p className="flex items-center gap-2">
+            <span className="truncate text-[13px] font-medium">{project.name}</span>
+            {pendingReports > 0 ? (
+              <span className="shrink-0 text-[10px] font-medium tracking-[0.06em] text-warning">
+                REPORTED
+              </span>
+            ) : null}
+          </p>
           <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
             {project.client_name}
           </p>

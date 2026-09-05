@@ -12,7 +12,15 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /** Mobile-only header. The sidebar takes over from the `md` breakpoint up. */
-export function TopBar({ name, email }: { name: string; email: string }) {
+export function TopBar({
+  name,
+  email,
+  pendingPayments = 0,
+}: {
+  name: string;
+  email: string;
+  pendingPayments?: number;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
@@ -52,7 +60,12 @@ export function TopBar({ name, email }: { name: string; email: string }) {
                 )}
               >
                 <item.icon className="size-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/dashboard" && pendingPayments > 0 ? (
+                  <span className="tabular rounded-full bg-warning/15 px-1.5 text-[10px] font-medium text-warning">
+                    {pendingPayments}
+                  </span>
+                ) : null}
               </Link>
             ))}
           </nav>

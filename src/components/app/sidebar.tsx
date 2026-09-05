@@ -11,9 +11,10 @@ import { cn } from "@/lib/utils";
 interface SidebarProps {
   name: string;
   email: string;
+  pendingPayments?: number;
 }
 
-export function Sidebar({ name, email }: SidebarProps) {
+export function Sidebar({ name, email, pendingPayments = 0 }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -32,14 +33,19 @@ export function Sidebar({ name, email }: SidebarProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-[13px] transition-colors",
+                "flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-[13px] transition-colors",
                 active
                   ? "bg-elevated text-foreground"
                   : "text-muted-foreground hover:bg-elevated/60 hover:text-foreground",
               )}
             >
               <item.icon className="size-4 shrink-0" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.href === "/dashboard" && pendingPayments > 0 ? (
+                <span className="tabular rounded-full bg-warning/15 px-1.5 text-[10px] font-medium text-warning">
+                  {pendingPayments}
+                </span>
+              ) : null}
             </Link>
           );
         })}

@@ -42,6 +42,13 @@ export default async function ProjectDetailPage({
     <div className="space-y-8">
       <ProjectHeader project={project} portalUrl={portalUrl} />
 
+      {reportedMilestoneIds.length > 0 ? (
+        <p className="rounded-[8px] border border-warning/25 bg-warning/5 px-3.5 py-2.5 text-[12px] leading-relaxed">
+          Your client reported a payment. Confirm it on the milestone below once it
+          shows in your bank — a UPI scan cannot mark itself paid.
+        </p>
+      ) : null}
+
       {project.description ? (
         <p className="max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
           {project.description}

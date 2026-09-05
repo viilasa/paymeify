@@ -30,13 +30,20 @@ export function ProjectList({ projects }: { projects: ProjectWithTotals[] }) {
           <span>Status</span>
         </div>
 
-        {projects.map(({ project, totals }) => (
+        {projects.map(({ project, totals, pendingReports }) => (
           <Link
             key={project.id}
             href={`/projects/${project.id}`}
             className={`${columns} border-b border-border py-3 text-[13px] transition-colors last:border-b-0 hover:bg-surface`}
           >
-            <span className="truncate font-medium">{project.name}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-medium">{project.name}</span>
+              {pendingReports > 0 ? (
+                <span className="shrink-0 text-[10px] font-medium tracking-[0.06em] text-warning">
+                  REPORTED
+                </span>
+              ) : null}
+            </span>
             <span className="truncate text-muted-foreground">{project.client_name}</span>
             <span className="flex items-center gap-2">
               <ProgressBar value={totals.deliveryProgress} className="w-16" />

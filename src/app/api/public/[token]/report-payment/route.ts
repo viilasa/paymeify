@@ -55,7 +55,7 @@ export async function POST(
     }
 
     revalidatePath(`/p/${token}`);
-    revalidatePath("/dashboard");
+    revalidatePath("/dashboard", "layout");
     revalidatePath("/projects");
 
     return NextResponse.json({ ok: true });

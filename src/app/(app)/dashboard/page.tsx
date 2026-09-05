@@ -1,18 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { DashboardRefresh } from "@/components/app/dashboard-refresh";
+import { PaymentInbox } from "@/components/app/payment-inbox";
 import { EmptyState } from "@/components/empty-state";
 import { ProjectList } from "@/components/projects/project-list";
 import { SummaryStats } from "@/components/projects/summary-stats";
 import { Button } from "@/components/ui/button";
 import { displayName, requireSession } from "@/lib/auth";
-import { listProjects, summarise } from "@/lib/data/projects";
+import { listPendingPaymentReports, listProjects, summarise } from "@/lib/data/projects";
 import { formatMoney, greeting } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Dashboard" };
+export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [{ profile }, projects] = await Promise.all([requireSession(), listProjects()]);
+  const [{ profile }, projects, reports] = await Promise.all([
+    requireSession(),
+    listProjects(),
+    listPendingPaymentReports(),
+  ]);
   const summary = summarise(projects);
   const recent = projects.filter((p) => p.project.status !== "archived").slice(0, 8);
 
@@ -31,6 +38,10 @@ export default async function DashboardPage() {
           <Link href="/projects/new">+ New Project</Link>
         </Button>
       </div>
+
+      <DashboardRefresh />
+
+      <PaymentInbox reports={reports} />
 
       <SummaryStats
         stats={[
