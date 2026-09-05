@@ -1,7 +1,31 @@
 import Link from "next/link";
 
-import { Logo } from "@/components/logo";
+import { FaqList } from "@/components/marketing/faq-list";
+import { SiteFooter } from "@/components/marketing/site-footer";
+import { SiteHeader } from "@/components/marketing/site-header";
+import { JsonLd } from "@/components/seo/json-ld";
 import { Button } from "@/components/ui/button";
+import { landingFaqs } from "@/lib/content/faq";
+import {
+  faqJsonLd,
+  graphJsonLd,
+  howToJsonLd,
+  publicPageMetadata,
+} from "@/lib/seo";
+
+export const metadata = {
+  ...publicPageMetadata({
+    title: "Paymeify — Projects delivered. Payments tracked.",
+    description:
+      "Milestone tracker and payment collector for freelancers in India and worldwide. Create a project, share one private link, and get paid by UPI or Razorpay as you deliver.",
+    path: "/",
+  }),
+  alternates: {
+    canonical: "/",
+    languages: { "en-IN": "/", en: "/" },
+    types: { "text/plain": "/llms.txt" },
+  },
+};
 
 const steps = [
   {
@@ -17,14 +41,14 @@ const steps = [
   {
     step: "03",
     title: "Get paid as you deliver",
-    body: "Your client pays the current milestone. It flips to paid the moment Razorpay confirms it.",
+    body: "Your client pays the current milestone by UPI QR or Razorpay. Status updates when the payment is confirmed.",
   },
 ];
 
 const features = [
   {
     title: "Milestone-based payments",
-    body: "Every milestone carries its own amount and its own payment link.",
+    body: "Every milestone carries its own amount and its own payment path.",
   },
   {
     title: "A portal clients understand",
@@ -32,7 +56,7 @@ const features = [
   },
   {
     title: "Payment status you can trust",
-    body: "Status changes only on a verified Razorpay webhook. Never on a click.",
+    body: "UPI waits for you to confirm. Razorpay waits for a verified webhook. Never a client click.",
   },
   {
     title: "Nothing else",
@@ -43,28 +67,20 @@ const features = [
 export default function LandingPage() {
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-5">
-          <Logo />
-          <nav className="flex items-center gap-1.5">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/login">Log in</Link>
-            </Button>
-            <Button asChild variant="primary" size="sm">
-              <Link href="/signup">Start for free</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
+      <JsonLd data={graphJsonLd(howToJsonLd(), faqJsonLd(landingFaqs))} />
+      <SiteHeader />
 
       <main className="flex-1">
-        {/* Hero */}
         <section className="mx-auto w-full max-w-5xl px-5 pt-20 pb-20 sm:pt-28 sm:pb-24">
+          <p className="mb-3 text-[12px] font-medium tracking-wide text-muted-foreground uppercase">
+            For freelancers in India and worldwide
+          </p>
           <h1 className="max-w-2xl text-[32px] leading-[1.15] font-semibold tracking-tight text-balance sm:text-[44px]">
             Projects delivered. Payments tracked.
           </h1>
           <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-            Create milestones, share one project link, and get paid as you deliver.
+            Create milestones, share one project link, and get paid as you
+            deliver — by UPI at home, or Razorpay when you need cards.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-2.5">
             <Button asChild variant="primary" size="lg">
@@ -76,10 +92,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* How it works */}
-        <section className="border-t border-border">
+        <section className="border-t border-border" aria-labelledby="how-it-works">
           <div className="mx-auto w-full max-w-5xl px-5 py-16">
-            <h2 className="text-[13px] font-medium text-muted-foreground">
+            <h2
+              id="how-it-works"
+              className="text-[13px] font-medium text-muted-foreground"
+            >
               How it works
             </h2>
             <div className="mt-8 grid gap-px overflow-hidden rounded-[10px] border border-border bg-border sm:grid-cols-3">
@@ -98,10 +116,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Features */}
-        <section className="border-t border-border">
+        <section className="border-t border-border" aria-labelledby="what-you-get">
           <div className="mx-auto w-full max-w-5xl px-5 py-16">
-            <h2 className="text-[13px] font-medium text-muted-foreground">
+            <h2
+              id="what-you-get"
+              className="text-[13px] font-medium text-muted-foreground"
+            >
               What you get
             </h2>
             <dl className="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-2">
@@ -117,7 +137,55 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* CTA */}
+        <section className="border-t border-border" aria-labelledby="payments-india">
+          <div className="mx-auto w-full max-w-5xl px-5 py-16">
+            <h2
+              id="payments-india"
+              className="text-[13px] font-medium text-muted-foreground"
+            >
+              Payments in India, and beyond
+            </h2>
+            <div className="mt-8 grid gap-10 sm:grid-cols-2">
+              <div>
+                <h3 className="text-[14px] font-medium">UPI for INR</h3>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                  Put your UPI ID in Settings. Clients scan a QR with GPay,
+                  PhonePe, Paytm, or any UPI app. The money goes to your bank.
+                  You confirm once you see it — no gateway, no KYC, no extra
+                  account.
+                </p>
+              </div>
+              <div>
+                <h3 className="text-[14px] font-medium">Razorpay when you need it</h3>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                  Cards, automatic confirmation, and currencies other than
+                  rupees use your own Razorpay account. Status changes only
+                  after a verified webhook — never on a click.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-border" aria-labelledby="faq">
+          <div className="mx-auto w-full max-w-5xl px-5 py-16">
+            <div className="flex items-end justify-between gap-4">
+              <h2 id="faq" className="text-[13px] font-medium text-muted-foreground">
+                Questions
+              </h2>
+              <Link
+                href="/faq"
+                className="text-[12px] text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              >
+                All questions
+              </Link>
+            </div>
+            <div className="mt-8">
+              <FaqList items={landingFaqs} />
+            </div>
+          </div>
+        </section>
+
         <section className="border-t border-border">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-5 py-16 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -135,22 +203,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-5 py-6 text-[12px] text-subtle-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} Paymeify</span>
-          <div className="flex items-center gap-4">
-            <Link href="/demo" className="transition-colors hover:text-foreground">
-              Demo
-            </Link>
-            <Link href="/login" className="transition-colors hover:text-foreground">
-              Log in
-            </Link>
-            <Link href="/signup" className="transition-colors hover:text-foreground">
-              Sign up
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

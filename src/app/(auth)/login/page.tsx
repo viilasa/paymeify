@@ -1,11 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LoginForm } from "@/app/(auth)/login/login-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { FormBanner } from "@/components/form-banner";
+import { publicPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Log in" };
+export const metadata = publicPageMetadata({
+  title: "Log in",
+  description: "Log in to Paymeify to track project milestones and collect payments.",
+  path: "/login",
+});
 
 export default async function LoginPage({
   searchParams,
