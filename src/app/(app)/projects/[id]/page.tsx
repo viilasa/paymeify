@@ -6,10 +6,12 @@ import { ExternalLink } from "lucide-react";
 import { MilestoneList } from "@/components/projects/milestone-list";
 import { ProjectHeader } from "@/components/projects/project-header";
 import { ProjectStats } from "@/components/projects/project-stats";
+import { requireSession } from "@/lib/auth";
 import { getProjectDetail, isUuid } from "@/lib/data/projects";
 import { isRazorpayConfigured } from "@/lib/env";
 import { formatDate } from "@/lib/format";
 import { projectPortalUrl } from "@/lib/payments";
+import { supportsUpi } from "@/lib/upi";
 
 export const metadata: Metadata = { title: "Project" };
 
@@ -21,11 +23,20 @@ export default async function ProjectDetailPage({
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  const detail = await getProjectDetail(id);
+  const [detail, { profile }] = await Promise.all([getProjectDetail(id), requireSession()]);
   if (!detail) notFound();
 
-  const { project, milestones, totals } = detail;
+  const { project, milestones, totals, payments } = detail;
   const portalUrl = projectPortalUrl(project);
+
+  // UPI transfers the client has told us about but nobody has confirmed yet.
+  const reportedMilestoneIds = payments
+    .filter((p) => p.gateway === "upi" && p.status === "pending" && p.milestone_id)
+    .map((p) => p.milestone_id as string);
+
+  // UPI covers rupee projects; anything else needs Razorpay.
+  const canCollect =
+    (Boolean(profile.upi_id) && supportsUpi(project.currency)) || isRazorpayConfigured();
 
   return (
     <div className="space-y-8">
@@ -44,6 +55,7 @@ export default async function ProjectDetailPage({
         currency={project.currency}
         milestones={milestones}
         paymentsEnabled={isRazorpayConfigured()}
+        reportedMilestoneIds={reportedMilestoneIds}
       />
 
       <section className="rounded-[10px] border border-border bg-card p-4">
@@ -51,6 +63,15 @@ export default async function ProjectDetailPage({
         <p className="mt-1 text-[12px] text-muted-foreground">
           Anyone with this link can view progress and pay. No account needed.
         </p>
+        {!canCollect ? (
+          <p className="mt-3 rounded-[8px] border border-warning/25 bg-warning/5 px-3 py-2 text-[12px] leading-relaxed text-foreground">
+            Your client can see this project but cannot pay yet.{" "}
+            <Link href="/settings" className="underline underline-offset-2">
+              Add your UPI ID
+            </Link>{" "}
+            and they will get a QR to scan.
+          </p>
+        ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <code className="min-w-0 flex-1 truncate rounded-[8px] border border-border bg-surface px-3 py-2 font-mono text-[12px] text-muted-foreground">
             {portalUrl}

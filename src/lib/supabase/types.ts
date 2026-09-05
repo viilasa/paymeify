@@ -15,6 +15,8 @@ export type Profile = {
   name: string;
   email: string;
   business_name: string | null;
+  /** UPI Virtual Payment Address, e.g. `priya@okhdfcbank`. INR only. */
+  upi_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -88,7 +90,10 @@ export interface Database {
     Tables: {
       profiles: {
         Row: Profile;
-        Insert: Writable<Profile, "id" | "created_at" | "updated_at" | "business_name">;
+        Insert: Writable<
+          Profile,
+          "id" | "created_at" | "updated_at" | "business_name" | "upi_id"
+        >;
         Update: Partial<Profile>;
         Relationships: [];
       };
@@ -158,6 +163,10 @@ export interface Database {
     Functions: {
       get_project_by_token: {
         Args: { p_token: string };
+        Returns: unknown;
+      };
+      report_payment_by_token: {
+        Args: { p_token: string; p_position: number; p_reference: string | null };
         Returns: unknown;
       };
     };

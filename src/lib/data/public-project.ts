@@ -16,6 +16,12 @@ const publicMilestoneSchema = z.object({
   payment_status: z.enum(["unpaid", "pending", "paid", "failed"]),
   due_date: z.string().nullable(),
   paid_at: z.string().nullable(),
+  /**
+   * The client told us they transferred this one, but the freelancer has not
+   * confirmed it against their bank yet. Only reachable through UPI, which has
+   * no webhook to confirm it automatically.
+   */
+  payment_reported: z.boolean().default(false),
 });
 
 const publicProjectSchema = z.object({
@@ -27,6 +33,8 @@ const publicProjectSchema = z.object({
   start_date: z.string().nullable(),
   due_date: z.string().nullable(),
   business_name: z.string(),
+  /** Where to send a UPI transfer. Null until the freelancer adds one. */
+  upi_id: z.string().nullable().default(null),
   milestones: z.array(publicMilestoneSchema),
 });
 

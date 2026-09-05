@@ -16,7 +16,10 @@ interface MilestoneListProps {
   projectId: string;
   currency: string;
   milestones: Milestone[];
+  /** Razorpay is configured, so payment links can be created. */
   paymentsEnabled: boolean;
+  /** Milestones the client has reported a UPI transfer for, awaiting confirmation. */
+  reportedMilestoneIds: string[];
 }
 
 type Editing = { mode: "add" } | { mode: "edit"; milestone: Milestone } | null;
@@ -26,7 +29,12 @@ export function MilestoneList({
   currency,
   milestones,
   paymentsEnabled,
+  reportedMilestoneIds,
 }: MilestoneListProps) {
+  const reported = React.useMemo(
+    () => new Set(reportedMilestoneIds),
+    [reportedMilestoneIds],
+  );
   const [editing, setEditing] = React.useState<Editing>(null);
   const [deleting, setDeleting] = React.useState<Milestone | null>(null);
   const { pending, run } = useServerAction();
@@ -71,6 +79,7 @@ export function MilestoneList({
               isFirst={index === 0}
               isLast={index === milestones.length - 1}
               paymentsEnabled={paymentsEnabled}
+              paymentReported={reported.has(milestone.id)}
               onEdit={() => setEditing({ mode: "edit", milestone })}
               onDelete={() => setDeleting(milestone)}
             />

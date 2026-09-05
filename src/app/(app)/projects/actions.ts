@@ -6,7 +6,12 @@ import { redirect } from "next/navigation";
 import { AppError, failure, success, toUserMessage, type ActionState } from "@/lib/action-result";
 import { requireSession } from "@/lib/auth";
 import { isUuid } from "@/lib/data/projects";
-import { ensureMilestonePaymentLink, releaseMilestonePaymentLink } from "@/lib/payments";
+import {
+  ensureMilestonePaymentLink,
+  releaseMilestonePaymentLink,
+  reopenMilestone,
+  settleMilestoneManually,
+} from "@/lib/payments";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Milestone, Project } from "@/lib/supabase/types";
 import {
@@ -459,6 +464,50 @@ export async function createPaymentAction(
     return success(result.reused ? "Payment link is ready." : "Payment link created.");
   } catch (error) {
     return failure(toUserMessage(error, "Could not create the payment link."));
+  }
+}
+
+/**
+ * Records that a payment arrived outside a gateway — a UPI transfer, a bank
+ * transfer, cash. The freelancer has checked their account; this writes down
+ * what they saw.
+ */
+export async function markMilestonePaidAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const { project, milestone } = await requireOwnedMilestone(
+      formData.get("project_id"),
+      formData.get("milestone_id"),
+    );
+
+    await settleMilestoneManually(project.id, milestone.id);
+
+    revalidateProject(project.id, project.public_token);
+    return success(`${milestone.title} marked as paid.`);
+  } catch (error) {
+    return failure(toUserMessage(error, "Could not mark the milestone paid."));
+  }
+}
+
+/** Reverses a manual settlement that was confirmed too early. */
+export async function markMilestoneUnpaidAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const { project, milestone } = await requireOwnedMilestone(
+      formData.get("project_id"),
+      formData.get("milestone_id"),
+    );
+
+    await reopenMilestone(project.id, milestone.id);
+
+    revalidateProject(project.id, project.public_token);
+    return success(`${milestone.title} is unpaid again.`);
+  } catch (error) {
+    return failure(toUserMessage(error, "Could not reopen the milestone."));
   }
 }
 

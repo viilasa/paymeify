@@ -3,18 +3,22 @@
 import {
   ArrowDown,
   ArrowUp,
+  BadgeCheck,
   CircleDashed,
   CircleDot,
   CircleCheck,
   Link2Off,
   MoreHorizontal,
   Pencil,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 
 import {
   cancelPaymentAction,
   createPaymentAction,
+  markMilestonePaidAction,
+  markMilestoneUnpaidAction,
   moveMilestoneAction,
   setMilestoneStatusAction,
 } from "@/app/(app)/projects/actions";
@@ -40,6 +44,8 @@ interface MilestoneItemProps {
   isFirst: boolean;
   isLast: boolean;
   paymentsEnabled: boolean;
+  /** The client says they sent a UPI transfer for this one. */
+  paymentReported: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -51,6 +57,7 @@ export function MilestoneItem({
   isFirst,
   isLast,
   paymentsEnabled,
+  paymentReported,
   onEdit,
   onDelete,
 }: MilestoneItemProps) {
@@ -83,8 +90,34 @@ export function MilestoneItem({
           {milestone.paid_at ? ` · Paid ${formatDate(milestone.paid_at)}` : ""}
         </p>
 
-        {/* Payment controls */}
-        {!isPaid ? (
+        {/* The client has reported a transfer and is waiting on confirmation. */}
+        {!isPaid && paymentReported ? (
+          <div className="mt-3 rounded-[8px] border border-warning/25 bg-warning/5 p-3">
+            <p className="text-[12px] text-foreground">
+              Your client says they sent this payment.
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              Check it reached your account, then confirm. Nothing is marked paid until
+              you do.
+            </p>
+            <Button
+              size="sm"
+              variant="primary"
+              className="mt-2.5"
+              disabled={pending}
+              onClick={() => run(markMilestonePaidAction, ids)}
+            >
+              <BadgeCheck />
+              Confirm payment received
+            </Button>
+          </div>
+        ) : null}
+
+        {/*
+          Razorpay controls only. UPI needs nothing per milestone — the client
+          portal builds the QR from the amount already on record.
+        */}
+        {!isPaid && (hasLink || paymentsEnabled) ? (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {hasLink ? (
               <>
@@ -109,12 +142,7 @@ export function MilestoneItem({
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={pending || !paymentsEnabled}
-                title={
-                  paymentsEnabled
-                    ? undefined
-                    : "Add your Razorpay keys in Settings to create payment links."
-                }
+                disabled={pending}
                 onClick={() => run(createPaymentAction, ids)}
               >
                 Create Payment
@@ -148,6 +176,22 @@ export function MilestoneItem({
                 <Pencil />
                 Edit milestone
               </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Payment</DropdownMenuLabel>
+              {isPaid ? (
+                <DropdownMenuItem
+                  onSelect={() => run(markMilestoneUnpaidAction, ids)}
+                >
+                  <RotateCcw />
+                  Mark as unpaid
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={() => run(markMilestonePaidAction, ids)}>
+                  <BadgeCheck />
+                  Mark as paid
+                </DropdownMenuItem>
+              )}
 
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Set status</DropdownMenuLabel>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ClientProjectView } from "@/components/client-portal/client-project-view";
 import { getPublicProject } from "@/lib/data/public-project";
+import { isRazorpayConfigured } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -25,5 +26,12 @@ export default async function ClientPortalPage({
 
   const returnedFrom = paid && /^\d{1,4}$/.test(paid) ? Number(paid) : undefined;
 
-  return <ClientProjectView {...view} token={token} returnedFrom={returnedFrom} />;
+  return (
+    <ClientProjectView
+      {...view}
+      token={token}
+      returnedFrom={returnedFrom}
+      razorpayEnabled={isRazorpayConfigured()}
+    />
+  );
 }

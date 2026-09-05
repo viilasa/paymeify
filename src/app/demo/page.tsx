@@ -20,6 +20,9 @@ const demoProject: PublicProject = {
   start_date: null,
   due_date: null,
   business_name: "ABC Studio",
+  // Not a real VPA — it renders a realistic QR, and any scan fails harmlessly
+  // at the bank because the address does not exist.
+  upi_id: "abcstudio@okhdfcbank",
   milestones: [
     {
       position: 1,
@@ -30,6 +33,7 @@ const demoProject: PublicProject = {
       payment_status: "paid",
       due_date: null,
       paid_at: null,
+      payment_reported: false,
     },
     {
       position: 2,
@@ -40,6 +44,7 @@ const demoProject: PublicProject = {
       payment_status: "paid",
       due_date: null,
       paid_at: null,
+      payment_reported: false,
     },
     {
       position: 3,
@@ -50,6 +55,7 @@ const demoProject: PublicProject = {
       payment_status: "unpaid",
       due_date: null,
       paid_at: null,
+      payment_reported: false,
     },
     {
       position: 4,
@@ -60,6 +66,7 @@ const demoProject: PublicProject = {
       payment_status: "unpaid",
       due_date: null,
       paid_at: null,
+      payment_reported: false,
     },
   ],
 };

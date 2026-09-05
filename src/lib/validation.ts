@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { SUPPORTED_CURRENCIES } from "@/lib/format";
+import { isValidUpiId } from "@/lib/upi";
 
 const currencyCodes = SUPPORTED_CURRENCIES.map((c) => c.code) as [string, ...string[]];
 
@@ -49,6 +50,27 @@ export const resetPasswordSchema = z
 export const profileSchema = z.object({
   name: trimmed(80).min(1, "Name is required"),
   business_name: optionalText(80),
+  upi_id: z
+    .string()
+    .trim()
+    .max(128)
+    .refine((value) => value === "" || isValidUpiId(value), {
+      message: "Enter a UPI ID like name@okhdfcbank",
+    })
+    .transform((value) => (value === "" ? null : value))
+    .nullable(),
+});
+
+/** Optional reference the client types in after paying, e.g. a UPI UTR. */
+export const paymentReportSchema = z.object({
+  position: z.number().int().positive().max(1000),
+  reference: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(/^[a-zA-Z0-9-]*$/, "Use only letters, numbers, and dashes")
+    .transform((value) => (value === "" ? null : value))
+    .nullable(),
 });
 
 export const milestoneInputSchema = z.object({

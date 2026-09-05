@@ -17,6 +17,7 @@ export async function updateProfileAction(
     const parsed = profileSchema.safeParse({
       name: formData.get("name"),
       business_name: formData.get("business_name") ?? "",
+      upi_id: formData.get("upi_id") ?? "",
     });
 
     if (!parsed.success) {
@@ -33,6 +34,14 @@ export async function updateProfileAction(
 
     revalidatePath("/settings");
     revalidatePath("/dashboard");
+
+    // Every client portal shows the business name and the UPI QR, so they all
+    // go stale the moment either changes.
+    const { data: projects } = await supabase.from("projects").select("public_token");
+    for (const { public_token } of projects ?? []) {
+      revalidatePath(`/p/${public_token}`);
+    }
+
     return success("Profile updated.");
   } catch (error) {
     return failure(toUserMessage(error, "Could not save your profile."));

@@ -2,15 +2,27 @@ import { Check } from "lucide-react";
 
 import { PaymentButton } from "@/components/client-portal/payment-button";
 import { PaymentConfirming } from "@/components/client-portal/payment-confirming";
+import { UpiPayment } from "@/components/client-portal/upi-payment";
 import { Logo } from "@/components/logo";
 import { ProgressBar } from "@/components/progress-bar";
 import { formatDate, formatMoney, formatPosition } from "@/lib/format";
 import type { PublicMilestone, PublicProjectView } from "@/lib/data/public-project";
+import { buildUpiUri, supportsUpi } from "@/lib/upi";
+import { upiQrSvg } from "@/lib/upi-qr";
 import { cn } from "@/lib/utils";
+
+/** Everything the client needs to pay one milestone by UPI. */
+interface UpiOffer {
+  upiId: string;
+  uri: string;
+  qrSvg: string;
+}
 
 interface ClientProjectViewProps extends PublicProjectView {
   token: string;
   demo?: boolean;
+  /** Razorpay links are only offered when the freelancer has it configured. */
+  razorpayEnabled?: boolean;
   /**
    * Position of the milestone the client just came back from paying, taken
    * from Razorpay's callback URL. Used only to decide which message to show —
@@ -19,13 +31,14 @@ interface ClientProjectViewProps extends PublicProjectView {
   returnedFrom?: number;
 }
 
-export function ClientProjectView({
+export async function ClientProjectView({
   project,
   milestones,
   totals,
   current,
   token,
   demo = false,
+  razorpayEnabled = false,
   returnedFrom,
 }: ClientProjectViewProps) {
   const paidMilestone = returnedFrom
@@ -33,6 +46,10 @@ export function ClientProjectView({
     : undefined;
   const awaitingConfirmation = Boolean(paidMilestone) && paidMilestone?.payment_status !== "paid";
   const everythingPaid = totals.milestoneCount > 0 && totals.remaining === 0;
+
+  const payable = current && current.amount > 0 ? current : undefined;
+  const upi = payable ? await buildUpiOffer(project, payable) : null;
+  const canPay = Boolean(upi) || razorpayEnabled;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
@@ -94,6 +111,8 @@ export function ClientProjectView({
             isCurrent={current?.position === milestone.position}
             token={token}
             demo={demo}
+            upi={current?.position === milestone.position ? upi : null}
+            razorpayEnabled={razorpayEnabled}
           />
         ))}
       </section>
@@ -118,6 +137,12 @@ export function ClientProjectView({
             All milestones are paid. Thank you.
           </p>
         ) : null}
+        {!everythingPaid && payable && !canPay ? (
+          <p className="mt-4 border-t border-border pt-4 text-[12px] leading-relaxed text-muted-foreground">
+            {project.business_name} has not set up online payments yet. Get in touch with
+            them to arrange this payment.
+          </p>
+        ) : null}
       </section>
 
       <footer className="mt-12 flex items-center justify-between border-t border-border pt-6">
@@ -133,6 +158,28 @@ export function ClientProjectView({
   );
 }
 
+/**
+ * Prepares the QR and deep link for one milestone. Returns null when UPI is not
+ * on offer, either because the freelancer has not added an ID or because the
+ * project is not priced in rupees.
+ */
+async function buildUpiOffer(
+  project: PublicProjectView["project"],
+  milestone: PublicMilestone,
+): Promise<UpiOffer | null> {
+  const upiId = project.upi_id;
+  if (!upiId || !supportsUpi(project.currency)) return null;
+
+  const uri = buildUpiUri({
+    vpa: upiId,
+    payeeName: project.business_name,
+    amount: milestone.amount,
+    note: `${project.name} ${milestone.title}`,
+  });
+
+  return { upiId, uri, qrSvg: await upiQrSvg(uri) };
+}
+
 // ---------------------------------------------------------------------------
 
 function MilestoneRow({
@@ -141,14 +188,19 @@ function MilestoneRow({
   isCurrent,
   token,
   demo,
+  upi,
+  razorpayEnabled,
 }: {
   milestone: PublicMilestone;
   currency: string;
   isCurrent: boolean;
   token: string;
   demo: boolean;
+  upi: UpiOffer | null;
+  razorpayEnabled: boolean;
 }) {
   const isPaid = milestone.payment_status === "paid";
+  const showPayment = isCurrent && !isPaid && milestone.amount > 0;
 
   return (
     <article
@@ -195,7 +247,23 @@ function MilestoneRow({
         </div>
       </div>
 
-      {isCurrent && !isPaid && milestone.amount > 0 ? (
+      {showPayment && upi ? (
+        <div className="mt-4 border-t border-border pt-4">
+          <UpiPayment
+            token={token}
+            position={milestone.position}
+            amount={milestone.amount}
+            currency={currency}
+            upiId={upi.upiId}
+            upiUri={upi.uri}
+            qrSvg={upi.qrSvg}
+            reported={milestone.payment_reported}
+            demo={demo}
+          />
+        </div>
+      ) : null}
+
+      {showPayment && !upi && razorpayEnabled ? (
         <div className="mt-4 border-t border-border pt-4">
           <PaymentButton
             token={token}
@@ -214,6 +282,7 @@ function statusLabel(milestone: PublicMilestone): string {
   if (milestone.payment_status === "paid") {
     return milestone.paid_at ? `Completed · paid ${formatDate(milestone.paid_at)}` : "Completed";
   }
+  if (milestone.payment_reported) return "Payment reported · awaiting confirmation";
   if (milestone.payment_status === "pending") return "Partially paid";
   if (milestone.status === "in_progress") return "In progress";
   if (milestone.status === "completed") return "Completed · awaiting payment";
