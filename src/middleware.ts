@@ -38,6 +38,15 @@ export async function middleware(request: NextRequest) {
 
   const { pathname, search } = request.nextUrl;
 
+  // A Server Action POST carries a `next-action` id that only exists on the
+  // page that rendered the form. Redirecting that POST to /login (or anywhere
+  // else) makes Next look the id up on the wrong page and throw
+  // UnrecognizedActionError. The actions already call requireSession().
+  const isServerAction =
+    request.method === "POST" && Boolean(request.headers.get("next-action"));
+
+  if (isServerAction) return response;
+
   if (!user && PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     const redirect = request.nextUrl.clone();
     redirect.pathname = "/login";
