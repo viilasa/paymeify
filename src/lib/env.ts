@@ -3,7 +3,18 @@
  *
  * Everything is read lazily so a missing secret surfaces as a clear runtime
  * error on the request that needs it, instead of breaking the build.
+ *
+ * Supabase also accepts `VITE_SUPABASE_*` and unprefixed `SUPABASE_*` names so
+ * a Vercel / dashboard project that was set up with Vite-style keys still works.
  */
+
+function firstEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
 
 function read(name: string, value: string | undefined): string {
   if (!value || value.trim() === "") {
@@ -15,14 +26,41 @@ function read(name: string, value: string | undefined): string {
 }
 
 export function supabaseUrl(): string {
-  return read("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL);
+  return read(
+    "NEXT_PUBLIC_SUPABASE_URL",
+    firstEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL", "VITE_SUPABASE_URL"),
+  );
 }
 
 export function supabaseAnonKey(): string {
   return read(
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    firstEnv(
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "SUPABASE_ANON_KEY",
+      "VITE_SUPABASE_ANON_KEY",
+    ),
   );
+}
+
+export function isSupabaseConfigured(): boolean {
+  return supabasePublicConfig() !== null;
+}
+
+/** URL + anon key, or null when this deployment has no Supabase credentials. */
+export function supabasePublicConfig(): { url: string; anonKey: string } | null {
+  const url = firstEnv(
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_URL",
+    "VITE_SUPABASE_URL",
+  );
+  const anonKey = firstEnv(
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_ANON_KEY",
+    "VITE_SUPABASE_ANON_KEY",
+  );
+  if (!url || !anonKey) return null;
+  return { url, anonKey };
 }
 
 export function supabaseServiceRoleKey(): string {

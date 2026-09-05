@@ -36,12 +36,16 @@ migrations in order using the SQL editor (or `supabase db push` with the CLI):
    least-privilege paths so collecting by UPI needs no service-role key
 
 Copy the project URL and keys from **Project Settings → API** into
-`.env.local`:
+`.env.local` (or Vercel **Environment Variables**):
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
+
+`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are accepted as aliases if a
+hosting project was set up with those names. Without one of these pairs, sign-up
+and log-in throw a server error instead of creating a session.
 
 `SUPABASE_SERVICE_ROLE_KEY` is only needed if you set up Razorpay, whose webhook
 has no user session to act on behalf of. Collecting by UPI does not use it, so
