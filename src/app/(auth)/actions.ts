@@ -2,7 +2,12 @@
 
 import { redirect } from "next/navigation";
 
-import { failure, success, type ActionState } from "@/lib/action-result";
+import {
+  failure,
+  success,
+  toUserMessage,
+  type ActionState,
+} from "@/lib/action-result";
 import { appUrl } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -20,6 +25,46 @@ function safeNext(value: FormDataEntryValue | null): string {
   return value;
 }
 
+function isNextRedirect(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof (error as { digest?: unknown }).digest === "string" &&
+    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
+}
+
+function authErrorMessage(error: { message: string; code?: string; status?: number }): string {
+  const message = error.message.toLowerCase();
+  const code = error.code ?? "";
+
+  if (message.includes("already registered") || code === "user_already_exists") {
+    return "An account with that email already exists.";
+  }
+  if (code === "email_address_invalid" || (message.includes("email") && message.includes("invalid"))) {
+    return "Enter a real email address. Addresses on example.com are not accepted.";
+  }
+  if (code === "over_email_send_rate_limit" || message.includes("rate limit")) {
+    return "Too many emails just now. Wait a minute and try again.";
+  }
+  if (error.status === 400) {
+    return "Incorrect email or password.";
+  }
+  return error.message;
+}
+
+function configOrAuthFailure(error: unknown, fallback: string): ActionState {
+  if (isNextRedirect(error)) throw error;
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("Missing environment variable")) {
+    return failure(
+      "Account services are not configured on this deployment yet. Add the Supabase URL and anon key, then try again.",
+    );
+  }
+  return failure(toUserMessage(error, fallback));
+}
+
 export async function signupAction(
   _prev: ActionState,
   formData: FormData,
@@ -34,27 +79,25 @@ export async function signupAction(
     return failure("Check the highlighted fields.", fieldErrorsFrom(parsed.error));
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    options: {
-      data: { name: parsed.data.name },
-      emailRedirectTo: `${appUrl()}/auth/callback?next=/dashboard`,
-    },
-  });
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signUp({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      options: {
+        data: { name: parsed.data.name },
+        emailRedirectTo: `${appUrl()}/auth/callback?next=/dashboard`,
+      },
+    });
 
-  if (error) {
-    return failure(
-      error.message.toLowerCase().includes("already registered")
-        ? "An account with that email already exists."
-        : error.message,
-    );
-  }
+    if (error) return failure(authErrorMessage(error));
 
-  // No session means the project requires email confirmation.
-  if (!data.session) {
-    return success("Check your inbox to confirm your email, then log in.");
+    // No session means the project requires email confirmation.
+    if (!data.session) {
+      return success("Check your inbox to confirm your email, then log in.");
+    }
+  } catch (error) {
+    return configOrAuthFailure(error, "Could not create your account. Try again in a moment.");
   }
 
   redirect("/dashboard");
@@ -73,15 +116,13 @@ export async function loginAction(
     return failure("Check the highlighted fields.", fieldErrorsFrom(parsed.error));
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
-  if (error) {
-    return failure(
-      error.status === 400
-        ? "Incorrect email or password."
-        : "Could not sign you in. Try again in a moment.",
-    );
+    if (error) return failure(authErrorMessage(error));
+  } catch (error) {
+    return configOrAuthFailure(error, "Could not sign you in. Try again in a moment.");
   }
 
   redirect(safeNext(formData.get("next")));
@@ -97,10 +138,17 @@ export async function forgotPasswordAction(
     return failure("Check the highlighted fields.", fieldErrorsFrom(parsed.error));
   }
 
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${appUrl()}/auth/callback?next=/reset-password`,
-  });
+  try {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+      redirectTo: `${appUrl()}/auth/callback?next=/reset-password`,
+    });
+  } catch (error) {
+    return configOrAuthFailure(
+      error,
+      "Could not send a reset email. Try again in a moment.",
+    );
+  }
 
   // Always the same response, so this cannot be used to probe for accounts.
   return success("If that email has an account, a reset link is on its way.");
@@ -119,17 +167,21 @@ export async function resetPasswordAction(
     return failure("Check the highlighted fields.", fieldErrorsFrom(parsed.error));
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return failure("This reset link has expired. Request a new one.");
+    if (!user) {
+      return failure("This reset link has expired. Request a new one.");
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+    if (error) return failure(error.message);
+  } catch (error) {
+    return configOrAuthFailure(error, "Could not update your password. Try again.");
   }
-
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) return failure(error.message);
 
   redirect("/dashboard");
 }
