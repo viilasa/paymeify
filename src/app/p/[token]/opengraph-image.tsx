@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 
+import { brandLogoSrc } from "@/lib/brand-logo";
 import { getPublicProject } from "@/lib/data/public-project";
 
 export const alt = "Paymeify project";
@@ -18,6 +19,7 @@ export default async function ProjectOpenGraphImage({
   const remaining = view
     ? `${view.totals.completedCount} of ${view.totals.milestoneCount} milestones completed`
     : "Share progress and collect milestone payments.";
+  const logo = await brandLogoSrc();
 
   return new ImageResponse(
     (
@@ -50,22 +52,13 @@ export default async function ProjectOpenGraphImage({
           <div style={{ fontSize: 26, color: "#8a8a8a" }}>{remaining}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 22, color: "#5f5f5f" }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 7,
-              background: "#f5f5f5",
-              color: "#090909",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 15,
-              fontWeight: 600,
-            }}
-          >
-            P
-          </div>
+          <img
+            src={logo}
+            alt=""
+            width={28}
+            height={28}
+            style={{ width: 28, height: 28, borderRadius: 7 }}
+          />
           Paymeify
         </div>
       </div>

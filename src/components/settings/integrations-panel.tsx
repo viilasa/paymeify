@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 
 import { GatewayConnectForm } from "@/components/settings/gateway-connect-form";
 import {
+  GPayLogo,
   RazorpayLogo,
   StripeLogo,
-  UpiLogo,
 } from "@/components/settings/integration-logos";
 import { UpiConnectForm } from "@/components/settings/upi-connect-form";
 import { Button } from "@/components/ui/button";
@@ -37,14 +37,14 @@ export function IntegrationsPanel({
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       <IntegrationCard
-        logo={<UpiLogo />}
-        name="UPI / GPay"
-        detail="Manual · India"
+        logo={<GPayLogo />}
+        name="GPay"
+        detail="UPI · India · manual"
         status={profile.upi_id ? profile.upi_id : "Not connected"}
         connected={Boolean(profile.upi_id)}
         action={profile.upi_id ? "Manage" : "Connect"}
-        title="Connect UPI"
-        description="Your own VPA. No account to open, and nothing marks itself paid."
+        title="Connect GPay / UPI"
+        description="Your own VPA. Clients pay in GPay or any UPI app. You confirm it."
       >
         <UpiConnectForm profile={profile} />
       </IntegrationCard>

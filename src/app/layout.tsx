@@ -33,6 +33,10 @@ export const metadata: Metadata = {
     title,
     description,
   },
+  icons: {
+    icon: [{ url: "/brand/logo.svg", type: "image/svg+xml" }, { url: "/icon.png" }],
+    apple: [{ url: "/apple-icon.png" }],
+  },
 };
 
 export const viewport: Viewport = {

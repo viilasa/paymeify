@@ -1,10 +1,14 @@
 import { ImageResponse } from "next/og";
 
+import { brandLogoSrc } from "@/lib/brand-logo";
+
 export const alt = "Paymeify — Projects delivered. Payments tracked.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpenGraphImage() {
+export default async function OpenGraphImage() {
+  const logo = await brandLogoSrc();
+
   return new ImageResponse(
     (
       <div
@@ -21,22 +25,13 @@ export default function OpenGraphImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              background: "#f5f5f5",
-              color: "#090909",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-              fontWeight: 600,
-            }}
-          >
-            P
-          </div>
+          <img
+            src={logo}
+            alt=""
+            width={44}
+            height={44}
+            style={{ width: 44, height: 44, borderRadius: 10 }}
+          />
           <div style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.03em" }}>
             Paymeify
           </div>
