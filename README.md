@@ -36,6 +36,8 @@ migrations in order using the SQL editor (or `supabase db push` with the CLI):
    least-privilege paths so collecting by UPI needs no service-role key
 5. `supabase/migrations/0005_payment_connections.sql` — each freelancer’s
    Razorpay / Stripe keys (encrypted at rest)
+6. `supabase/migrations/0006_google_profile_name.sql` — Google OAuth names
+   land on the profile row
 
 Copy the project URL and keys from **Project Settings → API** into
 `.env.local` (or Vercel **Environment Variables**):
@@ -56,8 +58,17 @@ encrypts freelancer gateway secrets. `SUPABASE_SERVICE_ROLE_KEY` is needed for
 automatic payments (webhooks have no user session). UPI-only collection can
 leave the service-role key blank.
 
-Under **Authentication → URL Configuration**, add
-`http://localhost:3000/auth/callback` to the redirect allow list.
+Under **Authentication → URL Configuration**, add these to the redirect
+allow list:
+
+- `http://localhost:3000/auth/callback`
+- `https://paymeify.vercel.app/auth/callback`
+
+**Google sign-in.** In Supabase **Authentication → Providers → Google**,
+paste the Client ID and Client Secret from Google Cloud. In the Google Cloud
+OAuth client, the authorized redirect URI must be
+`https://<your-project-ref>.supabase.co/auth/v1/callback`. The app button
+sends people to `/auth/callback` after Google finishes.
 
 For local development, turn on **Authentication → Sign In / Up → Confirm email
 → auto-confirm** so signup logs you straight in. The built-in mailer only

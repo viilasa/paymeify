@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 
 import { loginAction } from "@/app/(auth)/actions";
+import { AuthDivider, GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { FormBanner } from "@/components/form-banner";
 import { SubmitButton } from "@/components/submit-button";
 import { Field } from "@/components/ui/field";
@@ -14,7 +15,10 @@ export function LoginForm({ next }: { next: string }) {
   const [state, formAction] = useActionState(loginAction, emptyActionState);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <div className="space-y-4">
+      <GoogleAuthButton next={next} label="Continue with Google" />
+      <AuthDivider />
+      <form action={formAction} className="space-y-4">
       <input type="hidden" name="next" value={next} />
 
       <Field label="Email" htmlFor="email" error={state.fieldErrors?.email}>
@@ -53,6 +57,7 @@ export function LoginForm({ next }: { next: string }) {
           Forgot password?
         </Link>
       </div>
-    </form>
+      </form>
+    </div>
   );
 }

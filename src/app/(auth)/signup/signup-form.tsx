@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { signupAction } from "@/app/(auth)/actions";
+import { AuthDivider, GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { FormBanner } from "@/components/form-banner";
 import { SubmitButton } from "@/components/submit-button";
 import { Field } from "@/components/ui/field";
@@ -13,7 +14,10 @@ export function SignupForm() {
   const [state, formAction] = useActionState(signupAction, emptyActionState);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <div className="space-y-4">
+      <GoogleAuthButton label="Continue with Google" />
+      <AuthDivider />
+      <form action={formAction} className="space-y-4">
       <Field label="Name" htmlFor="name" error={state.fieldErrors?.name}>
         <Input
           id="name"
@@ -57,6 +61,7 @@ export function SignupForm() {
       <SubmitButton variant="primary" className="w-full" pendingLabel="Creating account…">
         Create account
       </SubmitButton>
-    </form>
+      </form>
+    </div>
   );
 }

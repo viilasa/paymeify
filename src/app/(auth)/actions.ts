@@ -65,6 +65,36 @@ function configOrAuthFailure(error: unknown, fallback: string): ActionState {
   return failure(toUserMessage(error, fallback));
 }
 
+export async function signInWithGoogleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const next = safeNext(formData.get("next"));
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${appUrl()}/auth/callback?next=${encodeURIComponent(next)}`,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+
+    if (error) {
+      const message = error.message.toLowerCase();
+      if (message.includes("provider is not enabled") || message.includes("unsupported provider")) {
+        return failure("Google sign-in is not enabled yet. Turn it on in Supabase Auth → Providers.");
+      }
+      return failure(authErrorMessage(error));
+    }
+    if (!data.url) return failure("Could not start Google sign-in. Try again.");
+    redirect(data.url);
+  } catch (error) {
+    return configOrAuthFailure(error, "Could not start Google sign-in. Try again.");
+  }
+}
+
 export async function signupAction(
   _prev: ActionState,
   formData: FormData,

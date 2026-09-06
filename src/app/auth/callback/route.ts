@@ -16,6 +16,13 @@ export async function GET(request: NextRequest) {
   const nextParam = searchParams.get("next");
   const next =
     nextParam?.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/dashboard";
+  const oauthError = searchParams.get("error_description") ?? searchParams.get("error");
+
+  if (oauthError) {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(oauthError)}`,
+    );
+  }
 
   const supabase = await createSupabaseServerClient();
 

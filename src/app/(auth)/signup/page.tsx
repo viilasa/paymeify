@@ -3,10 +3,17 @@ import Link from "next/link";
 
 import { SignupForm } from "@/app/(auth)/signup/signup-form";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { FormBanner } from "@/components/form-banner";
 
 export const metadata: Metadata = { title: "Sign up" };
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+
   return (
     <AuthShell
       title="Create your account"
@@ -20,6 +27,11 @@ export default function SignupPage() {
         </>
       }
     >
+      {error ? (
+        <div className="mb-4">
+          <FormBanner error={error} />
+        </div>
+      ) : null}
       <SignupForm />
     </AuthShell>
   );

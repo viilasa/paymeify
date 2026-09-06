@@ -38,6 +38,7 @@ export async function requireSession(): Promise<Session> {
       user_id: user.id,
       name:
         (user.user_metadata?.name as string | undefined)?.trim() ||
+        (user.user_metadata?.full_name as string | undefined)?.trim() ||
         user.email?.split("@")[0] ||
         "There",
       email: user.email ?? "",
