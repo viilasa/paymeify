@@ -60,7 +60,7 @@ export function PaymentButton({
     <Button
       variant="primary"
       size="lg"
-      className="w-full sm:w-auto"
+      className="h-11 w-full sm:h-9 sm:w-auto"
       disabled={pending}
       onClick={startPayment}
     >

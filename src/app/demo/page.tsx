@@ -82,13 +82,13 @@ export default function DemoPage() {
   return (
     <>
       <div className="border-b border-border bg-surface">
-        <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-between gap-3 px-5 py-2.5">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5 sm:py-2.5">
           <p className="text-[12px] text-muted-foreground">
             Demo — this is the page your client opens.
           </p>
           <Link
             href="/signup"
-            className="text-[12px] text-foreground underline underline-offset-4"
+            className="inline-flex min-h-11 items-center text-[13px] text-foreground underline underline-offset-4 sm:min-h-0 sm:text-[12px]"
           >
             Start for free
           </Link>

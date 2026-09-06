@@ -19,7 +19,7 @@ export function GoogleAuthButton({
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="next" value={next} />
-      <SubmitButton variant="secondary" className="w-full" pendingLabel="Redirecting…">
+      <SubmitButton variant="secondary" className="h-11 w-full sm:h-8" pendingLabel="Redirecting…">
         <GoogleMark />
         {label}
       </SubmitButton>

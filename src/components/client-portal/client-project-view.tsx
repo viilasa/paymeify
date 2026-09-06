@@ -52,7 +52,7 @@ export async function ClientProjectView({
   const canPay = Boolean(upi) || autoPay;
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
+    <div className="mx-auto w-full max-w-2xl px-4 py-8 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-14">
       {/* Who this is from */}
       <p className="text-[12px] text-muted-foreground">{project.business_name}</p>
       <h1 className="mt-1.5 text-[22px] leading-tight font-medium tracking-tight sm:text-[26px]">
@@ -119,7 +119,7 @@ export async function ClientProjectView({
 
       {/* Totals */}
       <section className="mt-10 rounded-[10px] border border-border bg-card p-4 sm:p-5">
-        <dl className="grid grid-cols-3 gap-4">
+        <dl className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-3">
           <Total label="Total project" value={formatMoney(totals.total, project.currency)} />
           <Total
             label="Paid"
@@ -145,7 +145,7 @@ export async function ClientProjectView({
         ) : null}
       </section>
 
-      <footer className="mt-12 flex items-center justify-between border-t border-border pt-6">
+      <footer className="mt-12 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-[11px] text-subtle-foreground">
           Prepared for {project.client_name}
         </span>

@@ -25,13 +25,14 @@ export function ProjectHeader({
         <p className="mt-1 text-[13px] text-muted-foreground">{project.client_name}</p>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
         <CopyButton
           value={portalUrl}
           label="Copy Client Link"
           toastMessage="Client link copied"
+          className="h-11 w-full sm:h-8 sm:w-auto"
         />
-        <Button asChild variant="secondary">
+        <Button asChild variant="secondary" className="h-11 w-full sm:h-8 sm:w-auto">
           <Link href={`/projects/${project.id}/settings`}>
             <Settings2 />
             Edit Project

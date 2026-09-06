@@ -45,14 +45,14 @@ export function LoginForm({ next }: { next: string }) {
 
       <FormBanner error={state.error} message={state.message} />
 
-      <SubmitButton variant="primary" className="w-full" pendingLabel="Signing in…">
+      <SubmitButton variant="primary" className="h-11 w-full sm:h-8" pendingLabel="Signing in…">
         Log in
       </SubmitButton>
 
       <div className="text-center">
         <Link
           href="/forgot-password"
-          className="text-[12px] text-subtle-foreground transition-colors hover:text-foreground"
+          className="inline-flex min-h-11 items-center text-[12px] text-subtle-foreground transition-colors hover:text-foreground sm:min-h-0"
         >
           Forgot password?
         </Link>

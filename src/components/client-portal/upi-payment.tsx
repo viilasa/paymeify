@@ -77,7 +77,7 @@ export function UpiPayment({
 
   if (!open) {
     return (
-      <Button variant="primary" size="lg" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
+      <Button variant="primary" size="lg" className="h-11 w-full sm:h-9 sm:w-auto" onClick={() => setOpen(true)}>
         <QrCode />
         Pay {formatMoney(amount, currency)}
       </Button>
@@ -114,7 +114,7 @@ export function UpiPayment({
             </div>
 
             {/* Pointless on desktop — no UPI app to hand off to. */}
-            <Button asChild size="sm" variant="secondary" className="sm:hidden">
+            <Button asChild size="sm" variant="secondary" className="h-11 sm:hidden">
               <a href={upiUri}>
                 <Smartphone />
                 Open UPI app
@@ -141,7 +141,7 @@ export function UpiPayment({
             spellCheck={false}
             className="sm:max-w-[220px]"
           />
-          <Button variant="primary" disabled={pending} onClick={report}>
+          <Button variant="primary" className="h-11 sm:h-8" disabled={pending} onClick={report}>
             {pending ? "Sending…" : "I have paid"}
           </Button>
         </div>

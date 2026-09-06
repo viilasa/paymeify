@@ -9,7 +9,7 @@ function Input({ className, ...props }: React.ComponentProps<"input">) {
   return (
     <input
       data-slot="input"
-      className={cn(fieldClasses, "h-9", className)}
+      className={cn(fieldClasses, "h-11 sm:h-9", className)}
       {...props}
     />
   );

@@ -36,6 +36,8 @@ export const publicIndexRoutes = [
   { path: "/demo", changeFrequency: "monthly" as const, priority: 0.7 },
   { path: "/signup", changeFrequency: "monthly" as const, priority: 0.6 },
   { path: "/login", changeFrequency: "yearly" as const, priority: 0.3 },
+  { path: "/terms", changeFrequency: "yearly" as const, priority: 0.2 },
+  { path: "/privacy", changeFrequency: "yearly" as const, priority: 0.2 },
 ] as const;
 
 export const robotsDisallow = [

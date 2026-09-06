@@ -34,7 +34,7 @@ export default async function DashboardPage() {
             Here is where your projects and payments stand.
           </p>
         </div>
-        <Button asChild variant="primary">
+        <Button asChild variant="primary" className="h-11 w-full sm:h-8 sm:w-auto">
           <Link href="/projects/new">+ New Project</Link>
         </Button>
       </div>

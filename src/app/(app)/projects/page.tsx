@@ -24,7 +24,7 @@ export default async function ProjectsPage() {
             : undefined
         }
         actions={
-          <Button asChild variant="primary">
+          <Button asChild variant="primary" className="h-11 w-full sm:h-8 sm:w-auto">
             <Link href="/projects/new">+ New Project</Link>
           </Button>
         }

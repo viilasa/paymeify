@@ -58,7 +58,7 @@ export function SignupForm() {
 
       <FormBanner error={state.error} message={state.message} />
 
-      <SubmitButton variant="primary" className="w-full" pendingLabel="Creating account…">
+      <SubmitButton variant="primary" className="h-11 w-full sm:h-8" pendingLabel="Creating account…">
         Create account
       </SubmitButton>
       </form>

@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar name={name} email={profile.email} pendingPayments={pendingPayments} />
       <TopBar name={name} email={profile.email} pendingPayments={pendingPayments} />
       <div className="md:pl-52">
-        <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <main className="mx-auto w-full max-w-5xl px-4 py-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8">
           {children}
         </main>
       </div>

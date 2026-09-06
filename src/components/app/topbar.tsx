@@ -30,13 +30,14 @@ export function TopBar({
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur md:hidden">
-      <div className="flex h-14 items-center justify-between px-4">
-        <Link href="/dashboard" aria-label="Paymeify dashboard">
+      <div className="flex h-14 items-center justify-between px-4 pt-[env(safe-area-inset-top)]">
+        <Link href="/dashboard" aria-label="Paymeify dashboard" className="inline-flex min-h-11 items-center">
           <Logo />
         </Link>
         <Button
           variant="ghost"
           size="icon"
+          className="size-11"
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
@@ -53,7 +54,7 @@ export function TopBar({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
+                  "flex min-h-11 items-center gap-2.5 rounded-[6px] px-2.5 py-2.5 text-[13px] transition-colors",
                   isActive(pathname, item.href)
                     ? "bg-elevated text-foreground"
                     : "text-muted-foreground",
