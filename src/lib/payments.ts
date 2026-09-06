@@ -1,6 +1,11 @@
 import { AppError } from "@/lib/action-result";
 import { appUrl } from "@/lib/env";
-import { cancelPaymentLink, createPaymentLink } from "@/lib/razorpay";
+import { loadOwnerCredentials } from "@/lib/payments/connections";
+import {
+  cancelCheckout,
+  createCheckout,
+  providerForCurrency,
+} from "@/lib/payments/providers";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Milestone, Project } from "@/lib/supabase/types";
@@ -56,7 +61,17 @@ export async function ensureMilestonePaymentLink(
 
   if (!project) throw new AppError("That project no longer exists.");
 
-  const created = await createPaymentLink({
+  const provider = providerForCurrency(project.currency);
+  const credentials = await loadOwnerCredentials(project.user_id, provider);
+  if (!credentials) {
+    throw new AppError(
+      provider === "razorpay"
+        ? "Connect Razorpay in Settings to take automatic payments."
+        : "Connect Stripe in Settings to take automatic payments.",
+    );
+  }
+
+  const created = await createCheckout(provider, credentials, {
     amount: Number(milestone.amount),
     currency: project.currency,
     description: `${project.name} — ${milestone.title}`,
@@ -64,16 +79,14 @@ export async function ensureMilestonePaymentLink(
     milestoneId: milestone.id,
     customerName: project.client_name,
     customerEmail: project.client_email,
-    // The position tells the portal which milestone to confirm on return.
-    // Razorpay's own callback params are ignored — the webhook is the source
-    // of truth for payment status.
     callbackUrl: `${appUrl()}/p/${project.public_token}?paid=${milestone.position}`,
+    cancelUrl: `${appUrl()}/p/${project.public_token}`,
   });
 
   // Claim the milestone only if no other request got there first.
   const { data: claimed } = await admin
     .from("milestones")
-    .update({ payment_link_id: created.id, payment_link_url: created.shortUrl })
+    .update({ payment_link_id: created.id, payment_link_url: created.url })
     .eq("id", milestone.id)
     .is("payment_link_id", null)
     .select("payment_link_id, payment_link_url")
@@ -81,7 +94,7 @@ export async function ensureMilestonePaymentLink(
 
   if (!claimed) {
     // Someone else won the race. Discard ours and use theirs.
-    await cancelPaymentLink(created.id);
+    await cancelCheckout(provider, credentials, created.id);
     const { data: current } = await admin
       .from("milestones")
       .select("payment_link_id, payment_link_url")
@@ -99,12 +112,12 @@ export async function ensureMilestonePaymentLink(
     milestone_id: milestone.id,
     amount: Number(milestone.amount),
     currency: project.currency,
-    gateway: "razorpay",
+    gateway: created.provider,
     gateway_payment_link_id: created.id,
     status: "created",
   });
 
-  return { url: created.shortUrl, id: created.id, reused: false };
+  return { url: created.url, id: created.id, reused: false };
 }
 
 /** Clears a milestone's link so a fresh one can be issued. */
@@ -113,7 +126,7 @@ export async function releaseMilestonePaymentLink(milestoneId: string): Promise<
 
   const { data: milestone } = await admin
     .from("milestones")
-    .select("payment_link_id, payment_status")
+    .select("payment_link_id, payment_status, project_id")
     .eq("id", milestoneId)
     .maybeSingle();
 
@@ -122,7 +135,19 @@ export async function releaseMilestonePaymentLink(milestoneId: string): Promise<
     throw new AppError("This milestone has already been paid.");
   }
 
-  await cancelPaymentLink(milestone.payment_link_id);
+  const { data: project } = await admin
+    .from("projects")
+    .select("user_id, currency")
+    .eq("id", milestone.project_id)
+    .maybeSingle();
+
+  if (project) {
+    const provider = providerForCurrency(project.currency);
+    const credentials = await loadOwnerCredentials(project.user_id, provider);
+    if (credentials) {
+      await cancelCheckout(provider, credentials, milestone.payment_link_id);
+    }
+  }
 
   await admin
     .from("milestones")
@@ -234,13 +259,13 @@ export async function reopenMilestone(
     .from("payments")
     .select("id")
     .eq("milestone_id", milestone.id)
-    .eq("gateway", "razorpay")
+    .in("gateway", ["razorpay", "stripe"])
     .eq("status", "captured")
     .limit(1);
 
   if (gatewayPayments?.length) {
     throw new AppError(
-      "This milestone was paid through Razorpay, so it cannot be reopened here.",
+      "This milestone was paid through a payment gateway, so it cannot be reopened here.",
     );
   }
 

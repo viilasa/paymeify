@@ -17,7 +17,7 @@ const steps = [
   {
     step: "03",
     title: "Get paid as you deliver",
-    body: "Your client pays the current milestone. It flips to paid the moment Razorpay confirms it.",
+    body: "Your client pays the current milestone. Gateway checkouts mark themselves paid; UPI waits for you to confirm.",
   },
 ];
 
@@ -32,7 +32,7 @@ const features = [
   },
   {
     title: "Payment status you can trust",
-    body: "Status changes only on a verified Razorpay webhook. Never on a click.",
+    body: "A client click never marks a milestone paid. Only a signed webhook or your confirmation does.",
   },
   {
     title: "Nothing else",

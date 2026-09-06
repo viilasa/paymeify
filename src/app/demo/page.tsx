@@ -7,6 +7,10 @@ import { buildView, type PublicProject } from "@/lib/data/public-project";
 export const metadata: Metadata = {
   title: "Demo project link",
   description: "See what your client sees when you share a Paymeify project link.",
+  openGraph: {
+    title: "Demo project link",
+    description: "See what your client sees when you share a Paymeify project link.",
+  },
 };
 
 /** Mirrors supabase/seed.sql so the demo matches local development data. */
@@ -23,6 +27,7 @@ const demoProject: PublicProject = {
   // Not a real VPA — it renders a realistic QR, and any scan fails harmlessly
   // at the bank because the address does not exist.
   upi_id: "abcstudio@okhdfcbank",
+  auto_pay: null,
   milestones: [
     {
       position: 1,

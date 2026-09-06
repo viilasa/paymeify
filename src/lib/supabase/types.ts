@@ -1,6 +1,8 @@
 export type ProjectStatus = "draft" | "active" | "completed" | "archived";
 export type MilestoneStatus = "pending" | "in_progress" | "completed";
 export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed";
+export type PaymentProvider = "razorpay" | "stripe";
+export type PaymentConnectionStatus = "connected" | "invalid";
 export type PaymentRecordStatus =
   | "created"
   | "pending"
@@ -66,6 +68,25 @@ export type Payment = {
   status: PaymentRecordStatus;
   created_at: string;
   paid_at: string | null;
+};
+
+export type PaymentConnection = {
+  id: string;
+  user_id: string;
+  provider: PaymentProvider;
+  key_id: string;
+  secret_encrypted: string;
+  webhook_secret_encrypted: string;
+  status: PaymentConnectionStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Safe to send to the browser. */
+export type PaymentConnectionPublic = {
+  provider: PaymentProvider;
+  keyHint: string;
+  status: PaymentConnectionStatus;
 };
 
 export type WebhookEvent = {
@@ -150,6 +171,15 @@ export interface Database {
           | "milestone_id"
         >;
         Update: Partial<Payment>;
+        Relationships: [];
+      };
+      payment_connections: {
+        Row: PaymentConnection;
+        Insert: Writable<
+          PaymentConnection,
+          "id" | "created_at" | "updated_at" | "status"
+        >;
+        Update: Partial<PaymentConnection>;
         Relationships: [];
       };
       webhook_events: {

@@ -10,8 +10,8 @@ client, and get paid milestone by milestone. Clients never create an account.
 ## Stack
 
 Next.js (App Router) · TypeScript · Tailwind CSS v4 · shadcn/ui primitives ·
-Supabase (Postgres, Auth, RLS) · UPI QR codes · Razorpay Payment Links ·
-deployable to Vercel.
+Supabase (Postgres, Auth, RLS) · UPI QR codes · Razorpay / Stripe (per freelancer)
+· deployable to Vercel.
 
 ## Getting started
 
@@ -34,6 +34,8 @@ migrations in order using the SQL editor (or `supabase db push` with the CLI):
    extra fields the client portal needs to offer it
 4. `supabase/migrations/0004_upi_no_service_role.sql` — moves the UPI flow onto
    least-privilege paths so collecting by UPI needs no service-role key
+5. `supabase/migrations/0005_payment_connections.sql` — each freelancer’s
+   Razorpay / Stripe keys (encrypted at rest)
 
 Copy the project URL and keys from **Project Settings → API** into
 `.env.local` (or Vercel **Environment Variables**):
@@ -41,15 +43,18 @@ Copy the project URL and keys from **Project Settings → API** into
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+PAYMENT_SECRETS_KEY=
 ```
 
 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are accepted as aliases if a
 hosting project was set up with those names. Without one of these pairs, sign-up
 and log-in throw a server error instead of creating a session.
 
-`SUPABASE_SERVICE_ROLE_KEY` is only needed if you set up Razorpay, whose webhook
-has no user session to act on behalf of. Collecting by UPI does not use it, so
-you can leave it blank.
+`PAYMENT_SECRETS_KEY` is any long random string (`openssl rand -hex 32`). It
+encrypts freelancer gateway secrets. `SUPABASE_SERVICE_ROLE_KEY` is needed for
+automatic payments (webhooks have no user session). UPI-only collection can
+leave the service-role key blank.
 
 Under **Authentication → URL Configuration**, add
 `http://localhost:3000/auth/callback` to the redirect allow list.
@@ -81,37 +86,24 @@ Only step 3 marks the milestone paid. You can also mark any milestone paid from
 its `…` menu without the client reporting anything, which is what you want for a
 bank transfer or cash.
 
-UPI settles in rupees only, so a project in any other currency needs Razorpay.
+UPI settles in rupees only. Other currencies use Stripe, connected in Settings.
 
-### 4. Set up Razorpay (optional)
+### 4. Automatic payments (optional, per freelancer)
 
-Razorpay needs a registered business and KYC, which is why UPI exists above. The
-payoff is that it confirms payments automatically instead of you checking your
-bank.
+Each freelancer connects **their own** gateway in **Settings**. Money goes to
+their account. The app never uses a shared platform Razorpay/Stripe key.
 
-From the Razorpay dashboard, copy your API keys into `.env.local`:
+**India (INR)** — Razorpay. Settings shows the webhook URL to paste. Subscribe
+to `payment_link.paid`, `payment_link.expired`, `payment_link.cancelled`.
 
-```
-RAZORPAY_KEY_ID=
-RAZORPAY_KEY_SECRET=
-```
+**Everywhere else** — Stripe. Subscribe to `checkout.session.completed` and
+`checkout.session.expired`.
 
-Then add a webhook pointing at `https://your-domain/api/webhooks/razorpay`,
-subscribed to these four events:
+For local webhook testing, tunnel the dev server (`ngrok http 3000`) and set
+`NEXT_PUBLIC_APP_URL` to that hostname so Settings shows a reachable URL.
 
-- `payment_link.paid`
-- `payment_link.partially_paid`
-- `payment_link.expired`
-- `payment_link.cancelled`
-
-Put the webhook's signing secret in `RAZORPAY_WEBHOOK_SECRET`.
-
-For local testing, expose your dev server with a tunnel (`ngrok http 3000` or
-`cloudflared tunnel --url http://localhost:3000`), use that hostname for both
-the Razorpay webhook and `NEXT_PUBLIC_APP_URL`.
-
-The app runs without Razorpay keys — payment link creation is simply hidden and
-Settings shows Razorpay as "Not set up".
+The client portal then offers **Pay** (marks itself paid) next to the GPay QR
+(still confirmed by you).
 
 ### 5. Run
 
@@ -149,7 +141,7 @@ Sign up at `/signup`, then optionally load the demo project by running
 | `/projects/new`           | Auth    | Create a project with its milestones           |
 | `/projects/[id]`          | Auth    | Progress, milestone timeline, payment controls |
 | `/projects/[id]/settings` | Auth    | Edit, regenerate client link, delete           |
-| `/settings`               | Auth    | Profile, UPI ID, and payment method status      |
+| `/settings`               | Auth    | Profile, UPI ID, Razorpay / Stripe connect      |
 | `/p/[token]`              | Client  | The client portal — no account needed          |
 
 ## How payment status is decided
@@ -179,25 +171,29 @@ Reversing a confirmation cancels the off-gateway `payments` rows and returns the
 milestone to `unpaid`. Delivery `status` is deliberately left alone: the work
 being finished is independent of the money arriving.
 
-### Razorpay
+### Razorpay and Stripe
 
-1. The freelancer (or the client, from the portal) asks the server for a
-   payment link. The server prices the milestone from the database and calls
-   Razorpay, storing the returned `plink_…` id on the milestone.
-2. The client pays on Razorpay's hosted page.
-3. Razorpay POSTs to `/api/webhooks/razorpay`. The handler verifies the
-   HMAC-SHA256 signature against `RAZORPAY_WEBHOOK_SECRET` before reading the
-   body, then claims the delivery's event id in `webhook_events` so retries are
-   a no-op.
-4. On `payment_link.paid` it writes the payment row, sets the milestone to
-   `payment_status = paid` / `status = completed` with a `paid_at`, and marks
-   the project completed once every milestone is paid.
-5. Razorpay's redirect back to `/p/[token]?paid=<position>` only decides which
+INR projects use the owner's Razorpay connection; every other currency uses
+their Stripe connection. There is no platform merchant account.
+
+1. The client presses **Pay**. The server prices the milestone from the
+   database, loads that project's owner keys, and creates a Razorpay Payment
+   Link or a Stripe Checkout Session. The checkout id is stored on the
+   milestone.
+2. The client pays on the hosted page.
+3. The gateway POSTs to `/api/webhooks/razorpay` or `/api/webhooks/stripe`.
+   The handler reads `project_id` from notes/metadata, loads **that owner's**
+   webhook secret, and verifies the signature before settling anything.
+4. A claimed row in `webhook_events` makes retries a no-op. On paid it writes
+   the payment, sets the milestone to `payment_status = paid` /
+   `status = completed` with a `paid_at`, and marks the project completed once
+   every milestone is paid.
+5. The redirect back to `/p/[token]?paid=<position>` only decides which
    message to show. If the webhook has not landed yet, the portal says the
    payment is being confirmed and refreshes itself until it is.
 
-`payment_link.expired` and `payment_link.cancelled` clear the stale link from
-the milestone and leave it unpaid, so a fresh link can be issued.
+Expired or cancelled checkouts clear the stale link and leave the milestone
+unpaid, so a fresh one can be issued.
 
 Duplicate payment records are prevented by a unique index on
 `(gateway, gateway_payment_id)` and by claiming each webhook delivery id.
@@ -211,25 +207,26 @@ Duplicate payment records are prevented by a unique index on
   of two `SECURITY DEFINER` functions keyed on the project token.
 - **A freelancer can record their own money, and nothing else.** The `payments`
   insert and update policies are restricted to `gateway in ('upi','manual')`, so
-  a browser cannot forge a Razorpay row to make a milestone look
+  a browser cannot forge a Razorpay or Stripe row to make a milestone look
   gateway-settled.
 - **Gateway columns stay gateway-owned.** A trigger on `milestones` rejects any
   change to `payment_link_id` or `payment_link_url` from the `authenticated` or
   `anon` role, and refuses to let anyone hand-edit `payment_status` on a
-  milestone that has a Razorpay link or a captured Razorpay payment. Razorpay's
-  webhook stays the only thing that can settle a Razorpay payment. The owner may
-  move a milestone between `paid` and `unpaid` only when no gateway is involved
-  — `pending` and `failed` describe a gateway in flight and are refused.
+  milestone that has a checkout link or a captured gateway payment. The signed
+  webhook is the only thing that can settle those. The owner may move a
+  milestone between `paid` and `unpaid` only when no gateway is involved —
+  `pending` and `failed` describe a gateway in flight and are refused.
 - **Clients read through one function.** `get_project_by_token(text)` is
   `SECURITY DEFINER` and returns a whitelisted JSON view of a single project.
   Internal UUIDs never leave the server; the portal addresses milestones by
   position.
 - **Tokens are unguessable.** 40 hex characters generated from two v4 UUIDs,
   regenerable from project settings if a link leaks.
-- **Secrets stay server-side.** The service-role key and both Razorpay secrets
-  are only read inside server actions, route handlers, and the webhook. There
-  is no browser Supabase client at all — every mutation is a server action.
-  Collecting by UPI needs no service-role key.
+- **Secrets stay server-side.** Freelancer Razorpay/Stripe keys are encrypted
+  with `PAYMENT_SECRETS_KEY` and never sent to the browser. The service-role
+  key is only used by webhooks (no user session). There is no browser Supabase
+  client — every mutation is a server action. Collecting by UPI needs no
+  service-role key.
 - **Payments are taken in order.** The lowest-positioned unpaid milestone is the
   only payable one. This is enforced in `report_payment_by_token` itself, not
   just in the route that calls it, so reaching the function directly gains
@@ -242,13 +239,13 @@ Duplicate payment records are prevented by a unique index on
 
 Import the repository, then add every variable from `.env.example` in
 **Settings → Environment Variables**. Set `NEXT_PUBLIC_APP_URL` to your
-production origin, and point the Razorpay webhook and the Supabase redirect
-allow list at that same origin.
+production origin, and point each freelancer’s gateway webhook plus the
+Supabase redirect allow list at that same origin.
 
 ## Notes and trade-offs
 
 - Amounts are stored as `numeric(14,2)` and converted to minor units only when
-  calling Razorpay, which works in paise.
+  calling a gateway (paise, cents, etc.).
 - The dashboard greeting uses server time, so it reflects the deployment
   region rather than the freelancer's timezone.
 - Summary figures on the dashboard are added up across projects using the

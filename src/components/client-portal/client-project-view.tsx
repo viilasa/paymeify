@@ -21,8 +21,8 @@ interface UpiOffer {
 interface ClientProjectViewProps extends PublicProjectView {
   token: string;
   demo?: boolean;
-  /** Razorpay links are only offered when the freelancer has it configured. */
-  razorpayEnabled?: boolean;
+  /** Owner has a connected gateway that can mark this milestone paid on its own. */
+  autoPay?: boolean;
   /**
    * Position of the milestone the client just came back from paying, taken
    * from Razorpay's callback URL. Used only to decide which message to show —
@@ -38,7 +38,7 @@ export async function ClientProjectView({
   current,
   token,
   demo = false,
-  razorpayEnabled = false,
+  autoPay = false,
   returnedFrom,
 }: ClientProjectViewProps) {
   const paidMilestone = returnedFrom
@@ -49,7 +49,7 @@ export async function ClientProjectView({
 
   const payable = current && current.amount > 0 ? current : undefined;
   const upi = payable ? await buildUpiOffer(project, payable) : null;
-  const canPay = Boolean(upi) || razorpayEnabled;
+  const canPay = Boolean(upi) || autoPay;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
@@ -69,8 +69,8 @@ export async function ClientProjectView({
           {awaitingConfirmation ? (
             <>
               <Banner tone="pending">
-                Payment received. We are confirming it with Razorpay — this page will
-                update on its own in a moment.
+                Payment received. We are confirming it — this page will update on its
+                own in a moment.
               </Banner>
               <PaymentConfirming />
             </>
@@ -112,7 +112,7 @@ export async function ClientProjectView({
             token={token}
             demo={demo}
             upi={current?.position === milestone.position ? upi : null}
-            razorpayEnabled={razorpayEnabled}
+            autoPay={autoPay}
           />
         ))}
       </section>
@@ -189,7 +189,7 @@ function MilestoneRow({
   token,
   demo,
   upi,
-  razorpayEnabled,
+  autoPay,
 }: {
   milestone: PublicMilestone;
   currency: string;
@@ -197,7 +197,7 @@ function MilestoneRow({
   token: string;
   demo: boolean;
   upi: UpiOffer | null;
-  razorpayEnabled: boolean;
+  autoPay: boolean;
 }) {
   const isPaid = milestone.payment_status === "paid";
   const showPayment = isCurrent && !isPaid && milestone.amount > 0;
@@ -247,8 +247,28 @@ function MilestoneRow({
         </div>
       </div>
 
-      {showPayment && upi ? (
+      {showPayment && autoPay ? (
         <div className="mt-4 border-t border-border pt-4">
+          <p className="mb-3 text-[12px] text-muted-foreground">
+            Pay here and this milestone marks itself paid.
+          </p>
+          <PaymentButton
+            token={token}
+            position={milestone.position}
+            amount={milestone.amount}
+            currency={currency}
+            demo={demo}
+          />
+        </div>
+      ) : null}
+
+      {showPayment && upi ? (
+        <div className={autoPay ? "mt-4" : "mt-4 border-t border-border pt-4"}>
+          {autoPay ? (
+            <p className="mb-3 text-[12px] text-muted-foreground">
+              Or scan with any UPI app. They will confirm it on their side.
+            </p>
+          ) : null}
           <UpiPayment
             token={token}
             position={milestone.position}
@@ -258,18 +278,6 @@ function MilestoneRow({
             upiUri={upi.uri}
             qrSvg={upi.qrSvg}
             reported={milestone.payment_reported}
-            demo={demo}
-          />
-        </div>
-      ) : null}
-
-      {showPayment && !upi && razorpayEnabled ? (
-        <div className="mt-4 border-t border-border pt-4">
-          <PaymentButton
-            token={token}
-            position={milestone.position}
-            amount={milestone.amount}
-            currency={currency}
             demo={demo}
           />
         </div>

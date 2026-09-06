@@ -3,18 +3,36 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 
 import { Toaster } from "@/components/ui/toaster";
+import { appUrl } from "@/lib/env";
 
 import "./globals.css";
 
+const title = "Paymeify — Projects delivered. Payments tracked.";
+const description =
+  "Create milestones, share one project link, and get paid as you deliver.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl()),
   title: {
-    default: "Paymeify — Projects delivered. Payments tracked.",
+    default: title,
     template: "%s · Paymeify",
   },
-  description:
-    "Create milestones, share one project link, and get paid as you deliver.",
+  description,
   applicationName: "Paymeify",
   robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: "/",
+    siteName: "Paymeify",
+    title,
+    description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
 };
 
 export const viewport: Viewport = {

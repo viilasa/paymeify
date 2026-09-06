@@ -8,9 +8,9 @@ import { ProjectHeader } from "@/components/projects/project-header";
 import { ProjectStats } from "@/components/projects/project-stats";
 import { requireSession } from "@/lib/auth";
 import { getProjectDetail, isUuid } from "@/lib/data/projects";
-import { isRazorpayConfigured } from "@/lib/env";
 import { formatDate } from "@/lib/format";
 import { projectPortalUrl } from "@/lib/payments";
+import { ownerHasAutoPay } from "@/lib/payments/connections";
 import { supportsUpi } from "@/lib/upi";
 
 export const metadata: Metadata = { title: "Project" };
@@ -34,9 +34,9 @@ export default async function ProjectDetailPage({
     .filter((p) => p.gateway === "upi" && p.status === "pending" && p.milestone_id)
     .map((p) => p.milestone_id as string);
 
-  // UPI covers rupee projects; anything else needs Razorpay.
+  const autoPay = await ownerHasAutoPay(profile.user_id, project.currency);
   const canCollect =
-    (Boolean(profile.upi_id) && supportsUpi(project.currency)) || isRazorpayConfigured();
+    (Boolean(profile.upi_id) && supportsUpi(project.currency)) || autoPay;
 
   return (
     <div className="space-y-8">
@@ -61,7 +61,7 @@ export default async function ProjectDetailPage({
         projectId={project.id}
         currency={project.currency}
         milestones={milestones}
-        paymentsEnabled={isRazorpayConfigured()}
+        paymentsEnabled={autoPay}
         reportedMilestoneIds={reportedMilestoneIds}
       />
 
@@ -74,9 +74,11 @@ export default async function ProjectDetailPage({
           <p className="mt-3 rounded-[8px] border border-warning/25 bg-warning/5 px-3 py-2 text-[12px] leading-relaxed text-foreground">
             Your client can see this project but cannot pay yet.{" "}
             <Link href="/settings" className="underline underline-offset-2">
-              Add your UPI ID
+              {supportsUpi(project.currency)
+                ? "Add a UPI ID or connect Razorpay"
+                : "Connect Stripe"}
             </Link>{" "}
-            and they will get a QR to scan.
+            in Settings.
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-3">

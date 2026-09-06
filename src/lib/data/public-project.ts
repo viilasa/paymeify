@@ -35,6 +35,8 @@ const publicProjectSchema = z.object({
   business_name: z.string(),
   /** Where to send a UPI transfer. Null until the freelancer adds one. */
   upi_id: z.string().nullable().default(null),
+  /** Hosted checkout the owner has connected, if any. */
+  auto_pay: z.enum(["razorpay", "stripe"]).nullable().default(null),
   milestones: z.array(publicMilestoneSchema),
 });
 

@@ -48,23 +48,6 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         />
       </Field>
 
-      <Field
-        label="UPI ID"
-        htmlFor="upi_id"
-        hint="Clients scan a QR to pay this directly. Leave blank to skip UPI."
-        error={state.fieldErrors?.upi_id}
-      >
-        <Input
-          id="upi_id"
-          name="upi_id"
-          defaultValue={profile.upi_id ?? ""}
-          maxLength={128}
-          placeholder="you@okhdfcbank"
-          autoCapitalize="none"
-          spellCheck={false}
-        />
-      </Field>
-
       <FormBanner error={state.error} />
 
       <SubmitButton variant="primary" pendingLabel="Saving…">

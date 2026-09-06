@@ -67,34 +67,20 @@ export function supabaseServiceRoleKey(): string {
   return read("SUPABASE_SERVICE_ROLE_KEY", process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-export function razorpayKeyId(): string {
-  return read("RAZORPAY_KEY_ID", process.env.RAZORPAY_KEY_ID);
+function isLocalOrigin(url: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url);
 }
 
-export function razorpayKeySecret(): string {
-  return read("RAZORPAY_KEY_SECRET", process.env.RAZORPAY_KEY_SECRET);
-}
-
-export function razorpayWebhookSecret(): string {
-  return read("RAZORPAY_WEBHOOK_SECRET", process.env.RAZORPAY_WEBHOOK_SECRET);
-}
-
-/** True when Razorpay credentials are configured, without throwing. */
-export function isRazorpayConfigured(): boolean {
-  return Boolean(
-    process.env.RAZORPAY_KEY_ID?.trim() && process.env.RAZORPAY_KEY_SECRET?.trim(),
-  );
-}
-
-/** Public origin used to build client-portal and payment callback URLs. */
+/** Public origin used to build client-portal, OG, and payment callback URLs. */
 export function appUrl(): string {
-  const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, "");
-
-  const vercel =
+  const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ?? "";
+  const vercelHost =
     process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ??
     process.env.VERCEL_URL?.trim();
-  if (vercel) return `https://${vercel.replace(/\/$/, "")}`;
 
+  // A leftover localhost value in Vercel env must not win on a deployed build.
+  if (explicit && !isLocalOrigin(explicit)) return explicit;
+  if (vercelHost) return `https://${vercelHost.replace(/\/$/, "")}`;
+  if (explicit) return explicit;
   return "http://localhost:3000";
 }

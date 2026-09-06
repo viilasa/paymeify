@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { AppError } from "@/lib/action-result";
 import { isValidToken } from "@/lib/data/public-project";
-import { isRazorpayConfigured } from "@/lib/env";
 import { assertPayableMilestone, ensureMilestonePaymentLink } from "@/lib/payments";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -26,10 +25,6 @@ export async function POST(
   try {
     const { token } = await params;
     if (!isValidToken(token)) return badRequest("This project link is not valid.");
-
-    if (!isRazorpayConfigured()) {
-      return badRequest("Online payments are not set up for this project yet.");
-    }
 
     const body = bodySchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return badRequest("That request was not understood.");

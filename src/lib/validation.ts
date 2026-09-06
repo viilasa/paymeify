@@ -50,6 +50,9 @@ export const resetPasswordSchema = z
 export const profileSchema = z.object({
   name: trimmed(80).min(1, "Name is required"),
   business_name: optionalText(80),
+});
+
+export const upiIdSchema = z.object({
   upi_id: z
     .string()
     .trim()
@@ -114,6 +117,13 @@ export const projectSettingsSchema = projectSchema.extend({
 });
 
 export const milestoneStatusSchema = z.enum(["pending", "in_progress", "completed"]);
+
+export const paymentConnectionSchema = z.object({
+  provider: z.enum(["razorpay", "stripe"]),
+  key_id: trimmed(80).min(4, "Enter the key id"),
+  secret: z.string().trim().min(8, "Enter the secret key").max(256),
+  webhook_secret: z.string().trim().min(8, "Enter the webhook secret").max(256),
+});
 
 /** Collapses a ZodError into `{ fieldName: firstMessage }`. */
 export function fieldErrorsFrom(error: z.ZodError): Record<string, string> {
