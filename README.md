@@ -58,17 +58,28 @@ encrypts freelancer gateway secrets. `SUPABASE_SERVICE_ROLE_KEY` is needed for
 automatic payments (webhooks have no user session). UPI-only collection can
 leave the service-role key blank.
 
-Under **Authentication → URL Configuration**, add these to the redirect
-allow list:
+Set **Authentication → URL Configuration → Site URL** to
+`https://www.paymeify.com`, then add these to the redirect allow list:
 
 - `http://localhost:3000/auth/callback`
-- `https://paymeify.vercel.app/auth/callback`
+- `http://localhost:3000/**`
+- `https://www.paymeify.com/auth/callback`
+- `https://www.paymeify.com/**`
+- `https://paymeify.com/auth/callback`
+- `https://paymeify.com/**`
 
 **Google sign-in.** In Supabase **Authentication → Providers → Google**,
 paste the Client ID and Client Secret from Google Cloud. In the Google Cloud
-OAuth client, the authorized redirect URI must be
-`https://<your-project-ref>.supabase.co/auth/v1/callback`. The app button
-sends people to `/auth/callback` after Google finishes.
+OAuth client:
+
+- Authorized JavaScript origins: `https://www.paymeify.com`,
+  `https://paymeify.com`, `http://localhost:3000`
+- Authorized redirect URI (only this):
+  `https://<your-project-ref>.supabase.co/auth/v1/callback`
+
+Do not put `www.paymeify.com` in Google’s redirect URIs. Google returns to
+Supabase; Supabase then sends the user to
+`https://www.paymeify.com/auth/callback`.
 
 For local development, turn on **Authentication → Sign In / Up → Confirm email
 → auto-confirm** so signup logs you straight in. The built-in mailer only
@@ -249,9 +260,9 @@ Duplicate payment records are prevented by a unique index on
 ## Deploying to Vercel
 
 Import the repository, then add every variable from `.env.example` in
-**Settings → Environment Variables**. Set `NEXT_PUBLIC_APP_URL` to your
-production origin, and point each freelancer’s gateway webhook plus the
-Supabase redirect allow list at that same origin.
+**Settings → Environment Variables**. Set `NEXT_PUBLIC_APP_URL` to `https://www.paymeify.com`, and point each
+freelancer’s gateway webhook plus the Supabase redirect allow list at that
+same origin. Apex `paymeify.com` 308s to `www`.
 
 ## Notes and trade-offs
 

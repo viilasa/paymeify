@@ -67,20 +67,41 @@ export function supabaseServiceRoleKey(): string {
   return read("SUPABASE_SERVICE_ROLE_KEY", process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+/** Purchased production host. Used for SEO, OG, and Google OAuth return. */
+export const PRODUCTION_ORIGIN = "https://www.paymeify.com";
+export const PRODUCTION_HOST = "www.paymeify.com";
+
 function isLocalOrigin(url: string): boolean {
   return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url);
+}
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url.includes("://") ? url : `https://${url}`).hostname;
+  } catch {
+    return "";
+  }
+}
+
+function isVercelAppHost(url: string): boolean {
+  return hostnameOf(url).endsWith(".vercel.app");
 }
 
 /** Public origin used to build client-portal, OG, and payment callback URLs. */
 export function appUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ?? "";
-  const vercelHost =
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ??
-    process.env.VERCEL_URL?.trim();
 
-  // A leftover localhost value in Vercel env must not win on a deployed build.
-  if (explicit && !isLocalOrigin(explicit)) return explicit;
-  if (vercelHost) return `https://${vercelHost.replace(/\/$/, "")}`;
+  if (explicit && !isLocalOrigin(explicit) && !isVercelAppHost(explicit)) {
+    return explicit;
+  }
+
+  if (process.env.VERCEL_ENV === "production") {
+    return PRODUCTION_ORIGIN;
+  }
+
+  const preview = process.env.VERCEL_URL?.trim();
+  if (preview) return `https://${preview.replace(/\/$/, "")}`;
+
   if (explicit) return explicit;
   return "http://localhost:3000";
 }

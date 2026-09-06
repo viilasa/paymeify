@@ -8,6 +8,22 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["razorpay", "stripe"],
   // Pin tracing to this directory so a lockfile further up the tree is ignored.
   outputFileTracingRoot: path.join(import.meta.dirname, "."),
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "paymeify.com" }],
+        destination: "https://www.paymeify.com/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "paymeify.vercel.app" }],
+        destination: "https://www.paymeify.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

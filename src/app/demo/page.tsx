@@ -7,7 +7,9 @@ import { buildView, type PublicProject } from "@/lib/data/public-project";
 export const metadata: Metadata = {
   title: "Demo project link",
   description: "See what your client sees when you share a Paymeify project link.",
+  alternates: { canonical: "/demo" },
   openGraph: {
+    url: "https://www.paymeify.com/demo",
     title: "Demo project link",
     description: "See what your client sees when you share a Paymeify project link.",
   },

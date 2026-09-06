@@ -5,7 +5,16 @@ import { SignupForm } from "@/app/(auth)/signup/signup-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { FormBanner } from "@/components/form-banner";
 
-export const metadata: Metadata = { title: "Sign up" };
+export const metadata: Metadata = {
+  title: "Sign up",
+  description: "Create a Paymeify account and start collecting milestone payments.",
+  alternates: { canonical: "/signup" },
+  openGraph: {
+    url: "https://www.paymeify.com/signup",
+    title: "Sign up · Paymeify",
+    description: "Create a Paymeify account and start collecting milestone payments.",
+  },
+};
 
 export default async function SignupPage({
   searchParams,

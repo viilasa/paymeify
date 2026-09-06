@@ -3,8 +3,19 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/projects", "/settings"];
 const AUTH_ROUTES = ["/login", "/signup"];
+const CANONICAL_HOST = "www.paymeify.com";
+const ALIAS_HOSTS = new Set(["paymeify.com", "paymeify.vercel.app"]);
 
 export async function middleware(request: NextRequest) {
+  const host = request.headers.get("host")?.split(":")[0]?.toLowerCase() ?? "";
+  if (ALIAS_HOSTS.has(host)) {
+    const url = request.nextUrl.clone();
+    url.hostname = CANONICAL_HOST;
+    url.protocol = "https:";
+    url.port = "";
+    return NextResponse.redirect(url, 308);
+  }
+
   let response = NextResponse.next({ request });
 
   const url =

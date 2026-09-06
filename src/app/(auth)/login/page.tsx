@@ -5,7 +5,16 @@ import { LoginForm } from "@/app/(auth)/login/login-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { FormBanner } from "@/components/form-banner";
 
-export const metadata: Metadata = { title: "Log in" };
+export const metadata: Metadata = {
+  title: "Log in",
+  description: "Log in to Paymeify to manage projects, milestones, and payments.",
+  alternates: { canonical: "/login" },
+  openGraph: {
+    url: "https://www.paymeify.com/login",
+    title: "Log in · Paymeify",
+    description: "Log in to Paymeify to manage projects, milestones, and payments.",
+  },
+};
 
 export default async function LoginPage({
   searchParams,
