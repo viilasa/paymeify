@@ -146,9 +146,14 @@ function wrapHtml(subject: string, inner: string): string {
 </body></html>`;
 }
 
-async function sendEmail(to: string, subject: string, html: string, text: string): Promise<boolean> {
+async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  text: string,
+): Promise<{ ok: boolean; error?: string }> {
   const key = resendApiKey();
-  if (!key) return false;
+  if (!key) return { ok: false, error: "RESEND_API_KEY is not set on this deployment (Vercel env)." };
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -168,9 +173,16 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     console.error("Resend failed", response.status, detail);
-    return false;
+    let message = `Resend rejected the email (${response.status}).`;
+    try {
+      const parsed = JSON.parse(detail) as { message?: string };
+      if (parsed.message) message = parsed.message;
+    } catch {
+      /* keep fallback */
+    }
+    return { ok: false, error: message };
   }
-  return true;
+  return { ok: true };
 }
 
 function msg91Mobile(e164: string): string {
@@ -312,10 +324,13 @@ export async function notifyClient(
 
   if (email) {
     try {
-      result.email = await sendEmail(email, message.subject, html, text);
-      if (result.email) await logSend(input.db, input, "email", email);
+      const mailed = await sendEmail(email, message.subject, html, text);
+      result.email = mailed.ok;
+      if (mailed.ok) await logSend(input.db, input, "email", email);
+      else if (mailed.error) result.error = mailed.error;
     } catch (error) {
       console.error("Email notify threw", error);
+      result.error = "Email failed to send.";
     }
   }
 
