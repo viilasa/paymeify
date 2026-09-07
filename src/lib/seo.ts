@@ -29,6 +29,8 @@ export const site = {
     "Stripe milestone checkout",
     "project milestone tracker",
   ],
+  googleSiteVerification: "0Lc8dOEUtOZFuicKxw4G0zPohl5ZPmOevrIhXxwxvLI",
+  gaMeasurementId: "G-Y446DXR7PT",
 } as const;
 
 export const publicIndexRoutes = [

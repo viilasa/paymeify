@@ -80,6 +80,10 @@ export default function PrivacyPage() {
           Payment providers you connect (Razorpay, Stripe) when a client pays
           through them. Their privacy policies apply to that checkout.
         </li>
+        <li>
+          Google Analytics, to understand how the public site is used. See
+          Google’s privacy policy for how they process that data.
+        </li>
         <li>Authorities if the law requires it.</li>
       </ul>
       <p>
@@ -90,8 +94,9 @@ export default function PrivacyPage() {
       <h2>5. Cookies</h2>
       <p>
         We use essential cookies for your session after you log in or sign up.
-        We do not use advertising cookies or third-party ad trackers on the
-        marketing site.
+        On the production site we also load Google Analytics (gtag.js), which
+        may set cookies to measure visits. We do not use advertising cookies
+        and we do not run third-party ads.
       </p>
 
       <h2>6. Retention</h2>

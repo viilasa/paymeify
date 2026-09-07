@@ -3,6 +3,7 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 
 import { Toaster } from "@/components/ui/toaster";
+import { GoogleAnalytics } from "@/components/google-analytics";
 import { PRODUCTION_ORIGIN } from "@/lib/env";
 import { geoOther, site } from "@/lib/seo";
 
@@ -28,6 +29,9 @@ export const metadata: Metadata = {
     },
   },
   robots: { index: true, follow: true },
+  verification: {
+    google: site.googleSiteVerification,
+  },
   openGraph: {
     type: "website",
     locale: site.locale,
@@ -71,6 +75,7 @@ export default function RootLayout({
       <body className="min-h-dvh bg-background text-foreground antialiased">
         {children}
         <Toaster />
+        <GoogleAnalytics />
       </body>
     </html>
   );
