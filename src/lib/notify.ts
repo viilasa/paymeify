@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { cronSecret, resendApiKey, resendFrom, twilioConfig } from "@/lib/env";
+import { cronSecret, resendApiKey, resendFrom, twilioConfig, twilioMissingReason } from "@/lib/env";
 import { formatMoney } from "@/lib/format";
 import { projectPortalUrl } from "@/lib/payments";
 import { normalizePhone } from "@/lib/phone";
@@ -132,9 +132,9 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   return true;
 }
 
-async function sendSms(to: string, body: string): Promise<boolean> {
+async function sendSms(to: string, body: string): Promise<{ ok: boolean; error?: string }> {
   const twilio = twilioConfig();
-  if (!twilio) return false;
+  if (!twilio) return { ok: false, error: twilioMissingReason() ?? "Twilio is not configured." };
 
   const params = new URLSearchParams({ To: to, Body: body.slice(0, 1500) });
   if (twilio.from.startsWith("MG")) params.set("MessagingServiceSid", twilio.from);
@@ -156,9 +156,16 @@ async function sendSms(to: string, body: string): Promise<boolean> {
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     console.error("Twilio failed", response.status, detail);
-    return false;
+    let message = `Twilio rejected the SMS (${response.status}).`;
+    try {
+      const parsed = JSON.parse(detail) as { message?: string };
+      if (parsed.message) message = parsed.message;
+    } catch {
+      /* keep fallback */
+    }
+    return { ok: false, error: message };
   }
-  return true;
+  return { ok: true };
 }
 
 async function logSend(
@@ -200,8 +207,10 @@ export async function recentlyReminded(
  * keys skip that channel. Failures never throw — creating a project must still
  * succeed if Resend/Twilio are down.
  */
-export async function notifyClient(input: NotifyInput): Promise<{ email: boolean; sms: boolean }> {
-  const result = { email: false, sms: false };
+export async function notifyClient(
+  input: NotifyInput,
+): Promise<{ email: boolean; sms: boolean; error?: string }> {
+  const result: { email: boolean; sms: boolean; error?: string } = { email: false, sms: false };
   const email = input.project.client_email?.trim() || null;
   const phone = normalizePhone(input.project.client_phone);
   if (!email && !phone) return result;
@@ -221,11 +230,16 @@ export async function notifyClient(input: NotifyInput): Promise<{ email: boolean
 
   if (phone) {
     try {
-      result.sms = await sendSms(phone, message.sms);
-      if (result.sms) await logSend(input.db, input, "sms", phone);
+      const sms = await sendSms(phone, message.sms);
+      result.sms = sms.ok;
+      if (sms.ok) await logSend(input.db, input, "sms", phone);
+      else if (!result.email) result.error = sms.error;
     } catch (error) {
       console.error("SMS notify threw", error);
+      if (!result.email) result.error = "SMS failed to send.";
     }
+  } else if (input.project.client_phone && !result.email) {
+    result.error = "That client phone number is not valid.";
   }
 
   return result;

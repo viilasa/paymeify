@@ -599,7 +599,8 @@ export async function remindClientAction(
 
     if (!sent.email && !sent.sms) {
       return failure(
-        "Could not send the reminder. Check that email/SMS keys are set, and that the client contact details are valid.",
+        sent.error ??
+          "Could not send the reminder. Check that email/SMS keys are set, and that the client contact details are valid.",
       );
     }
 

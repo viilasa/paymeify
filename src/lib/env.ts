@@ -124,6 +124,20 @@ export function twilioConfig():
   return { accountSid, authToken, from };
 }
 
+/** Why SMS will not send, or null if Twilio looks configured. */
+export function twilioMissingReason(): string | null {
+  const accountSid = firstEnv("TWILIO_ACCOUNT_SID");
+  const authToken = firstEnv("TWILIO_AUTH_TOKEN");
+  const from = firstEnv("TWILIO_FROM");
+  if (!accountSid || !authToken) {
+    return "Twilio Account SID and Auth Token are not set on this deployment.";
+  }
+  if (!from) {
+    return "TWILIO_FROM is empty. Add your Twilio phone number (for example +14155551234) in Vercel.";
+  }
+  return null;
+}
+
 export function cronSecret(): string | undefined {
   return firstEnv("CRON_SECRET");
 }
