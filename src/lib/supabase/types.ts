@@ -23,12 +23,26 @@ export type Profile = {
   updated_at: string;
 };
 
+export type NotificationKind = "project_created" | "milestone_completed" | "payment_reminder";
+export type NotificationChannel = "email" | "sms";
+
+export type ClientNotification = {
+  id: string;
+  project_id: string;
+  milestone_id: string | null;
+  kind: NotificationKind;
+  channel: NotificationChannel;
+  recipient: string;
+  sent_at: string;
+};
+
 export type Project = {
   id: string;
   user_id: string;
   name: string;
   client_name: string;
   client_email: string | null;
+  client_phone: string | null;
   description: string | null;
   status: ProjectStatus;
   currency: string;
@@ -129,6 +143,7 @@ export interface Database {
           | "status"
           | "currency"
           | "client_email"
+          | "client_phone"
           | "description"
           | "start_date"
           | "due_date"
@@ -180,6 +195,12 @@ export interface Database {
           "id" | "created_at" | "updated_at" | "status"
         >;
         Update: Partial<PaymentConnection>;
+        Relationships: [];
+      };
+      client_notifications: {
+        Row: ClientNotification;
+        Insert: Writable<ClientNotification, "id" | "sent_at" | "milestone_id">;
+        Update: Partial<ClientNotification>;
         Relationships: [];
       };
       webhook_events: {

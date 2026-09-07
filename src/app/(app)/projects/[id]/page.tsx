@@ -103,6 +103,10 @@ export default async function ProjectDetailPage({
           <dd className="mt-0.5 text-muted-foreground">{project.client_email ?? "—"}</dd>
         </div>
         <div>
+          <dt className="text-subtle-foreground">Client phone</dt>
+          <dd className="mt-0.5 text-muted-foreground">{project.client_phone ?? "—"}</dd>
+        </div>
+        <div>
           <dt className="text-subtle-foreground">Start date</dt>
           <dd className="mt-0.5 text-muted-foreground">{formatDate(project.start_date)}</dd>
         </div>

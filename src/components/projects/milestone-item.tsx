@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   BadgeCheck,
+  Bell,
   CircleDashed,
   CircleDot,
   CircleCheck,
@@ -20,6 +21,7 @@ import {
   markMilestonePaidAction,
   markMilestoneUnpaidAction,
   moveMilestoneAction,
+  remindClientAction,
   setMilestoneStatusAction,
 } from "@/app/(app)/projects/actions";
 import { CopyButton } from "@/components/copy-button";
@@ -187,10 +189,18 @@ export function MilestoneItem({
                   Mark as unpaid
                 </DropdownMenuItem>
               ) : (
-                <DropdownMenuItem onSelect={() => run(markMilestonePaidAction, ids)}>
-                  <BadgeCheck />
-                  Mark as paid
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onSelect={() => run(markMilestonePaidAction, ids)}>
+                    <BadgeCheck />
+                    Mark as paid
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => run(remindClientAction, { project_id: projectId })}
+                  >
+                    <Bell />
+                    Remind client to pay
+                  </DropdownMenuItem>
+                </>
               )}
 
               <DropdownMenuSeparator />

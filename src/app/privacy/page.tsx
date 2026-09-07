@@ -36,8 +36,9 @@ export default function PrivacyPage() {
           and optional business name and UPI ID.
         </li>
         <li>
-          Projects: project names, client names, milestone titles, amounts,
-          dates, and the public token used in the client link.
+          Projects: project names, client names, client email and phone if you
+          enter them, milestone titles, amounts, dates, and the public token
+          used in the client link.
         </li>
         <li>
           Payments: payment status, optional UPI reference the client typed,
@@ -83,6 +84,11 @@ export default function PrivacyPage() {
         <li>
           Google Analytics, to understand how the public site is used. See
           Google’s privacy policy for how they process that data.
+        </li>
+        <li>
+          Email and SMS providers (Resend and Twilio) when you ask us to notify
+          a client. We send only the project name, amounts, and the private
+          project link to the address or number you entered.
         </li>
         <li>Authorities if the law requires it.</li>
       </ul>

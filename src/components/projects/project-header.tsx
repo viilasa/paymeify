@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Settings2 } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
+import { RemindClientButton } from "@/components/projects/remind-client-button";
 import { ProjectStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/lib/supabase/types";
@@ -26,6 +27,10 @@ export function ProjectHeader({
       </div>
 
       <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+        <RemindClientButton
+          projectId={project.id}
+          disabled={!project.client_email && !project.client_phone}
+        />
         <CopyButton
           value={portalUrl}
           label="Copy Client Link"

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { AppError, failure, success, toUserMessage, type ActionState } from "@/lib/action-result";
 import { requireSession } from "@/lib/auth";
 import { isUuid } from "@/lib/data/projects";
+import { notifyClient, recentlyReminded } from "@/lib/notify";
 import {
   ensureMilestonePaymentLink,
   releaseMilestonePaymentLink,
@@ -82,6 +83,7 @@ function readProjectFields(formData: FormData) {
     name: formData.get("name"),
     client_name: formData.get("client_name"),
     client_email: formData.get("client_email") ?? "",
+    client_phone: formData.get("client_phone") ?? "",
     description: formData.get("description") ?? "",
     currency: formData.get("currency"),
     start_date: formData.get("start_date") ?? "",
@@ -100,7 +102,7 @@ export async function createProjectAction(
   let newProjectId: string;
 
   try {
-    const { user } = await requireSession();
+    const { user, profile } = await requireSession();
 
     const rawMilestones = formData.get("milestones");
     let milestones: unknown = [];
@@ -152,6 +154,13 @@ export async function createProjectAction(
       await supabase.from("projects").delete().eq("id", project.id);
       throw new AppError("Could not save the milestones. Try again.");
     }
+
+    await notifyClient({
+      db: supabase,
+      project,
+      profile,
+      kind: "project_created",
+    });
 
     revalidateProject(project.id, project.public_token);
     newProjectId = project.id;
@@ -322,6 +331,17 @@ export async function updateMilestoneAction(
 
     if (error) throw new AppError("Could not save the milestone.");
 
+    if (statusResult.data === "completed" && milestone.status !== "completed") {
+      const { profile } = await requireSession();
+      await notifyClient({
+        db: supabase,
+        project,
+        profile,
+        kind: "milestone_completed",
+        milestone,
+      });
+    }
+
     revalidateProject(project.id, project.public_token);
     return success("Milestone updated.");
   } catch (error) {
@@ -349,6 +369,17 @@ export async function setMilestoneStatusAction(
       .eq("id", milestone.id);
 
     if (error) throw new AppError("Could not update the status.");
+
+    if (status.data === "completed" && milestone.status !== "completed") {
+      const { profile } = await requireSession();
+      await notifyClient({
+        db: supabase,
+        project,
+        profile,
+        kind: "milestone_completed",
+        milestone,
+      });
+    }
 
     revalidateProject(project.id, project.public_token);
     return success("Status updated.");
@@ -527,5 +558,55 @@ export async function cancelPaymentAction(
     return success("Payment link cancelled.");
   } catch (error) {
     return failure(toUserMessage(error, "Could not cancel the payment link."));
+  }
+}
+
+/** Emails and texts the client about the current unpaid milestone. */
+export async function remindClientAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const project = await requireOwnedProject(formData.get("project_id"));
+    const { profile } = await requireSession();
+    const supabase = await createSupabaseServerClient();
+
+    if (!project.client_email && !project.client_phone) {
+      return failure("Add a client email or phone in project settings first.");
+    }
+
+    const { data: milestones } = await supabase
+      .from("milestones")
+      .select("*")
+      .eq("project_id", project.id)
+      .order("position", { ascending: true });
+
+    const due = (milestones ?? []).find((row) => row.payment_status !== "paid" && Number(row.amount) > 0);
+    if (!due) return failure("Nothing is unpaid on this project.");
+
+    const forced = formData.get("force") === "1";
+    if (!forced && (await recentlyReminded(supabase, project.id, due.id))) {
+      return failure("A reminder already went out in the last 3 days.");
+    }
+
+    const sent = await notifyClient({
+      db: supabase,
+      project,
+      profile,
+      kind: "payment_reminder",
+      milestone: due,
+    });
+
+    if (!sent.email && !sent.sms) {
+      return failure(
+        "Could not send the reminder. Check that email/SMS keys are set, and that the client contact details are valid.",
+      );
+    }
+
+    revalidateProject(project.id, project.public_token);
+    const via = [sent.email ? "email" : null, sent.sms ? "SMS" : null].filter(Boolean).join(" and ");
+    return success(`Reminder sent by ${via}.`);
+  } catch (error) {
+    return failure(toUserMessage(error, "Could not send the reminder."));
   }
 }

@@ -73,6 +73,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
           <Field
             label="Client email"
             htmlFor="client_email"
+            hint="Used to email the project link and payment reminders."
             error={state.fieldErrors?.client_email}
           >
             <Input
@@ -80,6 +81,23 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
               name="client_email"
               type="email"
               defaultValue={project.client_email ?? ""}
+            />
+          </Field>
+
+          <Field
+            label="Client phone"
+            htmlFor="client_phone"
+            hint="Used to SMS the project link and payment reminders."
+            error={state.fieldErrors?.client_phone}
+          >
+            <Input
+              id="client_phone"
+              name="client_phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              defaultValue={project.client_phone ?? ""}
+              placeholder="9876543210"
             />
           </Field>
 

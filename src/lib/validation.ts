@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { SUPPORTED_CURRENCIES } from "@/lib/format";
+import { normalizePhone } from "@/lib/phone";
 import { isValidUpiId } from "@/lib/upi";
 
 const currencyCodes = SUPPORTED_CURRENCIES.map((c) => c.code) as [string, ...string[]];
@@ -98,6 +99,15 @@ export const projectSchema = z.object({
       message: "Enter a valid email",
     })
     .transform((value) => (value === "" ? null : value))
+    .nullable(),
+  client_phone: z
+    .string()
+    .trim()
+    .max(20)
+    .refine((value) => value === "" || Boolean(normalizePhone(value)), {
+      message: "Enter a valid mobile number",
+    })
+    .transform((value) => normalizePhone(value))
     .nullable(),
   description: optionalText(1000),
   currency: z.enum(currencyCodes, { message: "Choose a currency" }),

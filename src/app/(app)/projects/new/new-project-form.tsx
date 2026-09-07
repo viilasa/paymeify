@@ -60,7 +60,7 @@ export function NewProjectForm() {
           <Field
             label="Client email"
             htmlFor="client_email"
-            hint="Optional. Used for Razorpay payment reminders."
+            hint="We'll email the project link when you create it, and when a milestone is ready to pay."
             error={state.fieldErrors?.client_email}
           >
             <Input
@@ -68,6 +68,22 @@ export function NewProjectForm() {
               name="client_email"
               type="email"
               placeholder="hello@acmecoffee.com"
+            />
+          </Field>
+
+          <Field
+            label="Client phone"
+            htmlFor="client_phone"
+            hint="Optional. SMS uses this number. Indian 10-digit mobiles are fine."
+            error={state.fieldErrors?.client_phone}
+          >
+            <Input
+              id="client_phone"
+              name="client_phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="9876543210"
             />
           </Field>
 

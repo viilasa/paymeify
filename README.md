@@ -38,6 +38,8 @@ migrations in order using the SQL editor (or `supabase db push` with the CLI):
    Razorpay / Stripe keys (encrypted at rest)
 6. `supabase/migrations/0006_google_profile_name.sql` — Google OAuth names
    land on the profile row
+7. `supabase/migrations/0007_client_notifications.sql` — client phone and
+   the email/SMS send log
 
 Copy the project URL and keys from **Project Settings → API** into
 `.env.local` (or Vercel **Environment Variables**):
@@ -127,7 +129,19 @@ For local webhook testing, tunnel the dev server (`ngrok http 3000`) and set
 The client portal then offers **Pay** (marks itself paid) next to the GPay QR
 (still confirmed by you).
 
-### 5. Run
+### 5. Client email and SMS
+
+Add the client’s email and/or mobile on the project. Paymeify then sends:
+
+- the project link when you create the project
+- a notice when you mark a milestone **Completed** (and asks them to pay if it is unpaid)
+- a payment reminder you trigger from the project, plus a daily reminder for unpaid current milestones (at most once every 3 days)
+
+Email goes through [Resend](https://resend.com). SMS goes through [Twilio](https://www.twilio.com). Set `RESEND_API_KEY`, `RESEND_FROM`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, and `CRON_SECRET` in Vercel. Without those keys the project still saves; the client is just not contacted.
+
+Verify `www.paymeify.com` on Resend so `RESEND_FROM` can be an `@paymeify.com` address.
+
+### 6. Run
 
 ```bash
 npm run dev

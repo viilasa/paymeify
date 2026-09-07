@@ -105,3 +105,25 @@ export function appUrl(): string {
   if (explicit) return explicit;
   return "http://localhost:3000";
 }
+
+export function resendApiKey(): string | undefined {
+  return firstEnv("RESEND_API_KEY");
+}
+
+export function resendFrom(): string {
+  return firstEnv("RESEND_FROM") ?? "Paymeify <hello@paymeify.com>";
+}
+
+export function twilioConfig():
+  | { accountSid: string; authToken: string; from: string }
+  | null {
+  const accountSid = firstEnv("TWILIO_ACCOUNT_SID");
+  const authToken = firstEnv("TWILIO_AUTH_TOKEN");
+  const from = firstEnv("TWILIO_FROM");
+  if (!accountSid || !authToken || !from) return null;
+  return { accountSid, authToken, from };
+}
+
+export function cronSecret(): string | undefined {
+  return firstEnv("CRON_SECRET");
+}
