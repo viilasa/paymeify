@@ -7,6 +7,7 @@ import { AppError, failure, success, toUserMessage, type ActionState } from "@/l
 import { requireSession } from "@/lib/auth";
 import { isUuid } from "@/lib/data/projects";
 import { notifyClient, recentlyReminded } from "@/lib/notify";
+import { composePhone, DEFAULT_DIAL_CODE } from "@/lib/phone";
 import {
   ensureMilestonePaymentLink,
   releaseMilestonePaymentLink,
@@ -78,12 +79,19 @@ function revalidateProject(projectId: string, publicToken?: string) {
   if (publicToken) revalidatePath(`/p/${publicToken}`);
 }
 
+function readClientPhone(formData: FormData) {
+  const code = String(formData.get("client_phone_code") ?? "");
+  const national = String(formData.get("client_phone_number") ?? "");
+  if (code || national) return composePhone(code || DEFAULT_DIAL_CODE, national);
+  return String(formData.get("client_phone") ?? "");
+}
+
 function readProjectFields(formData: FormData) {
   return {
     name: formData.get("name"),
     client_name: formData.get("client_name"),
     client_email: formData.get("client_email") ?? "",
-    client_phone: formData.get("client_phone") ?? "",
+    client_phone: readClientPhone(formData),
     description: formData.get("description") ?? "",
     currency: formData.get("currency"),
     start_date: formData.get("start_date") ?? "",

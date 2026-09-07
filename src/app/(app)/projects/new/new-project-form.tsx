@@ -17,6 +17,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { emptyActionState } from "@/lib/action-result";
 
 const starterDrafts: MilestoneDraft[] = [
@@ -74,17 +75,10 @@ export function NewProjectForm() {
           <Field
             label="Client phone"
             htmlFor="client_phone"
-            hint="Optional. SMS uses this number. Indian 10-digit mobiles are fine."
+            hint="Optional. SMS uses this number. Country code defaults to India."
             error={state.fieldErrors?.client_phone}
           >
-            <Input
-              id="client_phone"
-              name="client_phone"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="9876543210"
-            />
+            <PhoneInput />
           </Field>
 
           <Field label="Currency" htmlFor="currency" error={state.fieldErrors?.currency}>

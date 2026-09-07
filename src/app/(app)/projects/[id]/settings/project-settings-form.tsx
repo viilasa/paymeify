@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Select,
   SelectContent,
@@ -87,18 +88,10 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
           <Field
             label="Client phone"
             htmlFor="client_phone"
-            hint="Used to SMS the project link and payment reminders."
+            hint="Used to SMS the project link and payment reminders. Country code defaults to India."
             error={state.fieldErrors?.client_phone}
           >
-            <Input
-              id="client_phone"
-              name="client_phone"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              defaultValue={project.client_phone ?? ""}
-              placeholder="9876543210"
-            />
+            <PhoneInput defaultValue={project.client_phone} />
           </Field>
 
           <Field label="Currency" htmlFor="currency" error={state.fieldErrors?.currency}>
