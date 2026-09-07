@@ -265,12 +265,44 @@ export async function createProjectAction(
   redirect(`/projects/${newProjectId}`);
 }
 
+async function sendInvoicesForUnpaidMilestones(input: {
+  project: Project;
+  profile: { name: string; business_name: string | null };
+}): Promise<{ emailed: number; skipped: number }> {
+  if (!input.project.client_email?.trim()) return { emailed: 0, skipped: 0 };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: milestones } = await supabase
+    .from("milestones")
+    .select("*")
+    .eq("project_id", input.project.id)
+    .order("position", { ascending: true });
+
+  let emailed = 0;
+  let skipped = 0;
+  for (const milestone of milestones ?? []) {
+    if (milestone.payment_status === "paid" || Number(milestone.amount) <= 0) {
+      skipped += 1;
+      continue;
+    }
+    const result = await sendInvoiceForMilestone({
+      project: input.project,
+      milestone,
+      profile: input.profile,
+    });
+    if (result.emailed) emailed += 1;
+    else skipped += 1;
+  }
+  return { emailed, skipped };
+}
+
 export async function updateProjectAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   try {
     const project = await requireOwnedProject(formData.get("project_id"));
+    const { profile } = await requireSession();
 
     const parsed = projectSettingsSchema.safeParse({
       ...readProjectFields(formData),
@@ -289,8 +321,28 @@ export async function updateProjectAction(
 
     if (error) throw new AppError("Could not save your changes.");
 
+    const becameCompleted =
+      parsed.data.status === "completed" && project.status !== "completed";
+
+    let invoiceNote = "";
+    if (becameCompleted) {
+      const updatedProject = { ...project, ...parsed.data };
+      const sent = await sendInvoicesForUnpaidMilestones({
+        project: updatedProject,
+        profile,
+      });
+      if (sent.emailed > 0) {
+        invoiceNote =
+          sent.emailed === 1
+            ? " Invoice emailed for the unpaid milestone."
+            : ` ${sent.emailed} invoices emailed for unpaid milestones.`;
+      } else if (!updatedProject.client_email?.trim()) {
+        invoiceNote = " Add a client email to auto-send invoices next time.";
+      }
+    }
+
     revalidateProject(project.id, project.public_token);
-    return success("Project updated.");
+    return success(`Project updated.${invoiceNote}`);
   } catch (error) {
     return failure(toUserMessage(error, "Could not save your changes."));
   }

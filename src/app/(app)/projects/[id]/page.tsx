@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 
+import { CopyButton } from "@/components/copy-button";
 import { MilestoneList } from "@/components/projects/milestone-list";
 import { ProjectHeader } from "@/components/projects/project-header";
 import { ProjectStats } from "@/components/projects/project-stats";
@@ -57,7 +58,6 @@ export default async function ProjectDetailPage({
     <div className="space-y-8">
       <ProjectHeader
         project={project}
-        portalUrl={portalUrl}
         hasUnpaidInvoiceable={hasUnpaidInvoiceable}
       />
 
@@ -102,17 +102,24 @@ export default async function ProjectDetailPage({
             in Settings.
           </p>
         ) : null}
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+        <div className="mt-3 flex min-w-0 items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded-[8px] border border-border bg-surface px-3 py-2 font-mono text-[12px] text-muted-foreground">
             {portalUrl}
           </code>
+          <CopyButton
+            value={portalUrl}
+            label="Copy client link"
+            toastMessage="Client link copied"
+            iconOnly
+            variant="secondary"
+          />
           <Link
             href={`/p/${project.public_token}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground"
+            aria-label="Open client link"
           >
-            Open
             <ExternalLink className="size-3.5" />
           </Link>
         </div>

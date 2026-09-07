@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Settings2 } from "lucide-react";
 
-import { CopyButton } from "@/components/copy-button";
 import { RemindClientButton } from "@/components/projects/remind-client-button";
 import { SendInvoiceButton } from "@/components/projects/send-invoice-button";
 import { ProjectStatusBadge } from "@/components/status-badge";
@@ -10,11 +9,9 @@ import type { Project } from "@/lib/supabase/types";
 
 export function ProjectHeader({
   project,
-  portalUrl,
   hasUnpaidInvoiceable,
 }: {
   project: Project;
-  portalUrl: string;
   hasUnpaidInvoiceable?: boolean;
 }) {
   return (
@@ -37,12 +34,6 @@ export function ProjectHeader({
         <RemindClientButton
           projectId={project.id}
           disabled={!project.client_email && !project.client_phone}
-        />
-        <CopyButton
-          value={portalUrl}
-          label="Copy Client Link"
-          toastMessage="Client link copied"
-          className="h-11 w-full sm:h-8 sm:w-auto"
         />
         <Button asChild variant="secondary" className="h-11 w-full sm:h-8 sm:w-auto">
           <Link href={`/projects/${project.id}/settings`}>
