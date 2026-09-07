@@ -48,10 +48,13 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Refreshes the auth token and writes the rotated cookies onto `response`.
+  // Refresh/read the session from cookies. getSession is local JWT work and is
+  // far cheaper than getUser (Auth API). Pages/actions still call getUser via
+  // requireSession() before reading or writing user data.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const { pathname, search } = request.nextUrl;
 

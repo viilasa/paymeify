@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 
+import { NavigationProgress } from "@/components/navigation-progress";
 import { Toaster } from "@/components/ui/toaster";
 import { GoogleAnalytics } from "@/components/google-analytics";
 import { PRODUCTION_ORIGIN } from "@/lib/env";
@@ -73,6 +75,9 @@ export default function RootLayout({
   return (
     <html lang="en-IN" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="min-h-dvh bg-background text-foreground antialiased">
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         {children}
         <Toaster />
         <GoogleAnalytics />

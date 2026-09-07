@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 
@@ -11,9 +12,9 @@ export interface Session {
 
 /**
  * Loads the signed-in freelancer and their profile, or redirects to /login.
- * Every authenticated page and action starts here.
+ * Cached per request so layout + page share one auth/profile fetch.
  */
-export async function requireSession(): Promise<Session> {
+export const requireSession = cache(async (): Promise<Session> => {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -53,7 +54,7 @@ export async function requireSession(): Promise<Session> {
   }
 
   return { user, profile: created };
-}
+});
 
 export function displayName(profile: Profile): string {
   return profile.name.trim() || profile.email.split("@")[0] || "there";

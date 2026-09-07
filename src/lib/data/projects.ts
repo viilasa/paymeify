@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Milestone, Payment, Project } from "@/lib/supabase/types";
 import { computeTotals, type ProjectTotals } from "@/lib/progress";
@@ -146,7 +148,7 @@ export async function listPendingPaymentReports(): Promise<PendingPaymentReport[
   return reports;
 }
 
-export async function countPendingPaymentReports(): Promise<number> {
+export const countPendingPaymentReports = cache(async (): Promise<number> => {
   const supabase = await createSupabaseServerClient();
   const { count, error } = await supabase
     .from("payments")
@@ -156,7 +158,7 @@ export async function countPendingPaymentReports(): Promise<number> {
 
   if (error) throw new Error(error.message);
   return count ?? 0;
-}
+});
 
 export function summarise(projects: ProjectWithTotals[]): DashboardSummary {
   let outstanding = 0;
