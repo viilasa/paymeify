@@ -100,6 +100,11 @@ export default function TermsPage() {
         updated” date will change. Continued use after an update means you
         accept the new terms.
       </p>
+      <p>
+        Paymeify may offer Free and Pro plans. Current prices are at
+        www.paymeify.com/pricing. We do not take a cut of client payments;
+        gateway fees stay with your bank, Razorpay, or Stripe.
+      </p>
 
       <h2>8. Disclaimer</h2>
       <p>
@@ -114,7 +119,7 @@ export default function TermsPage() {
         profits, lost payments, chargebacks, or indirect damages. Our total
         liability for a claim relating to the Service is limited to the amount
         you paid us for the Service in the three months before the claim (which
-        is currently zero if the Service is free).
+        is zero on the Free plan).
       </p>
 
       <h2>10. Governing law</h2>

@@ -21,6 +21,7 @@ import {
   reopenMilestone,
   settleMilestoneManually,
 } from "@/lib/payments";
+import { canCreateProject, TRIAL_PROJECT_LIMIT_MESSAGE } from "@/lib/plans";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Milestone, Project } from "@/lib/supabase/types";
 import {
@@ -229,6 +230,19 @@ export async function createProjectAction(
 
     const { milestones: milestoneInput, ...projectInput } = parsed.data;
     const supabase = await createSupabaseServerClient();
+
+    const { count: projectCount, error: countError } = await supabase
+      .from("projects")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (countError) {
+      throw new AppError("Could not create the project. Try again.");
+    }
+
+    if (!canCreateProject(profile.plan, projectCount ?? 0)) {
+      return failure(TRIAL_PROJECT_LIMIT_MESSAGE, undefined, "trial_limit");
+    }
 
     const { data: project, error } = await supabase
       .from("projects")

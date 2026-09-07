@@ -12,6 +12,9 @@ export function SiteHeader() {
         </Link>
         <nav className="flex items-center gap-1.5">
           <Button asChild variant="ghost" size="sm" className="min-h-11 px-3 sm:min-h-7 sm:px-2.5">
+            <Link href="/pricing">Pricing</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm" className="min-h-11 px-3 sm:min-h-7 sm:px-2.5">
             <Link href="/login">Log in</Link>
           </Button>
           <Button asChild variant="primary" size="sm" className="min-h-11 px-3 sm:min-h-7 sm:px-2.5">

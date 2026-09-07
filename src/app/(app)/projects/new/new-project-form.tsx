@@ -134,6 +134,15 @@ export function NewProjectForm() {
 
       <FormBanner error={state.error} />
 
+      {state.code === "trial_limit" ? (
+        <p className="text-[13px] text-muted-foreground">
+          <Link href="/pricing" className="font-medium text-foreground underline-offset-2 hover:underline">
+            View pricing
+          </Link>{" "}
+          to upgrade to Pro.
+        </p>
+      ) : null}
+
       <div className="flex items-center gap-2">
         <SubmitButton variant="primary" pendingLabel="Creating…">
           Create Project

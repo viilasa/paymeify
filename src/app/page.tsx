@@ -84,7 +84,7 @@ const faqs = [
   },
   {
     q: "Is it free?",
-    a: "Yes. Paymeify does not charge you. Gateway fees are whatever Razorpay or Stripe already charge on your account.",
+    a: "Yes — start on Free. Pro is ₹399/month if you need more. See Pricing. Gateway fees are whatever Razorpay or Stripe already charge on your account.",
   },
   {
     q: "Who is this for?",
@@ -123,7 +123,11 @@ export default function LandingPage() {
               </Button>
             </div>
             <p className="mt-4 text-[12px] text-subtle-foreground">
-              Free to start. No card. Your payment keys stay yours.
+              Free to start.{" "}
+              <Link href="/pricing" className="underline-offset-2 hover:underline">
+                See pricing
+              </Link>
+              . No card. Your payment keys stay yours.
             </p>
           </div>
 

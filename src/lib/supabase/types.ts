@@ -11,6 +11,8 @@ export type PaymentRecordStatus =
   | "cancelled"
   | "expired";
 
+export type PlanTier = "free" | "pro";
+
 export type Profile = {
   id: string;
   user_id: string;
@@ -19,6 +21,8 @@ export type Profile = {
   business_name: string | null;
   /** UPI Virtual Payment Address, e.g. `priya@okhdfcbank`. INR only. */
   upi_id: string | null;
+  /** free = trial (1 project). pro = unlimited. */
+  plan: PlanTier;
   created_at: string;
   updated_at: string;
 };
@@ -153,7 +157,7 @@ export interface Database {
         Row: Profile;
         Insert: Writable<
           Profile,
-          "id" | "created_at" | "updated_at" | "business_name" | "upi_id"
+          "id" | "created_at" | "updated_at" | "business_name" | "upi_id" | "plan"
         >;
         Update: Partial<Profile>;
         Relationships: [];

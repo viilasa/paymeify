@@ -4,12 +4,22 @@ export interface ActionState {
   message?: string;
   /** Field-level messages keyed by input name. */
   fieldErrors?: Record<string, string>;
+  /** Machine-readable reason when the UI needs a follow-up CTA. */
+  code?: string;
 }
 
 export const emptyActionState: ActionState = {};
 
-export function failure(error: string, fieldErrors?: Record<string, string>): ActionState {
-  return { error, ...(fieldErrors ? { fieldErrors } : {}) };
+export function failure(
+  error: string,
+  fieldErrors?: Record<string, string>,
+  code?: string,
+): ActionState {
+  return {
+    error,
+    ...(fieldErrors ? { fieldErrors } : {}),
+    ...(code ? { code } : {}),
+  };
 }
 
 export function success(message: string): ActionState {
