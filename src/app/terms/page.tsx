@@ -101,8 +101,8 @@ export default function TermsPage() {
         accept the new terms.
       </p>
       <p>
-        Paymeify may offer Free and Pro plans. Current prices are at
-        www.paymeify.com/pricing. We do not take a cut of client payments;
+        Paymeify may offer Free and Pro plans. Current prices are on
+        www.paymeify.com. We do not take a cut of client payments;
         gateway fees stay with your bank, Razorpay, or Stripe.
       </p>
 

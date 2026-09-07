@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: "/pricing",
+        destination: "/#pricing",
+        permanent: true,
+      },
+      {
         source: "/:path*",
         has: [{ type: "host", value: "paymeify.com" }],
         destination: "https://www.paymeify.com/:path*",

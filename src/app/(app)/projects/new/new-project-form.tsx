@@ -136,7 +136,7 @@ export function NewProjectForm() {
 
       {state.code === "trial_limit" ? (
         <p className="text-[13px] text-muted-foreground">
-          <Link href="/pricing" className="font-medium text-foreground underline-offset-2 hover:underline">
+          <Link href="/#pricing" className="font-medium text-foreground underline-offset-2 hover:underline">
             View pricing
           </Link>{" "}
           to upgrade to Pro.

@@ -35,7 +35,6 @@ export const site = {
 
 export const publicIndexRoutes = [
   { path: "/", changeFrequency: "weekly" as const, priority: 1 },
-  { path: "/pricing", changeFrequency: "monthly" as const, priority: 0.8 },
   { path: "/demo", changeFrequency: "monthly" as const, priority: 0.7 },
   { path: "/signup", changeFrequency: "monthly" as const, priority: 0.6 },
   { path: "/login", changeFrequency: "yearly" as const, priority: 0.3 },
