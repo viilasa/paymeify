@@ -23,8 +23,13 @@ export type Profile = {
   updated_at: string;
 };
 
-export type NotificationKind = "project_created" | "milestone_completed" | "payment_reminder";
+export type NotificationKind =
+  | "project_created"
+  | "milestone_completed"
+  | "payment_reminder"
+  | "invoice_sent";
 export type NotificationChannel = "email" | "sms";
+export type InvoiceStatus = "sent" | "paid" | "void";
 
 export type ClientNotification = {
   id: string;
@@ -34,6 +39,27 @@ export type ClientNotification = {
   channel: NotificationChannel;
   recipient: string;
   sent_at: string;
+};
+
+export type Invoice = {
+  id: string;
+  user_id: string;
+  project_id: string;
+  milestone_id: string;
+  number: string;
+  from_name: string;
+  client_name: string;
+  client_email: string | null;
+  line_title: string;
+  amount: number;
+  currency: string;
+  due_date: string | null;
+  status: InvoiceStatus;
+  issued_at: string;
+  sent_at: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Project = {
@@ -203,6 +229,23 @@ export interface Database {
         Update: Partial<ClientNotification>;
         Relationships: [];
       };
+      invoices: {
+        Row: Invoice;
+        Insert: Writable<
+          Invoice,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "client_email"
+          | "due_date"
+          | "status"
+          | "issued_at"
+          | "sent_at"
+          | "paid_at"
+        >;
+        Update: Partial<Invoice>;
+        Relationships: [];
+      };
       webhook_events: {
         Row: WebhookEvent;
         Insert: Writable<WebhookEvent, "gateway" | "processed_at">;
@@ -214,6 +257,10 @@ export interface Database {
     Functions: {
       get_project_by_token: {
         Args: { p_token: string };
+        Returns: unknown;
+      };
+      get_invoice_by_token: {
+        Args: { p_token: string; p_position: number };
         Returns: unknown;
       };
       report_payment_by_token: {

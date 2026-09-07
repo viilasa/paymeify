@@ -1,5 +1,6 @@
 import { AppError } from "@/lib/action-result";
 import { appUrl } from "@/lib/env";
+import { markInvoicePaidForMilestone } from "@/lib/invoices";
 import { loadOwnerCredentials } from "@/lib/payments/connections";
 import {
   cancelCheckout,
@@ -231,6 +232,8 @@ export async function settleMilestoneManually(
   if (updateError) {
     throw new AppError(updateError.message || "Could not mark the milestone paid.");
   }
+
+  await markInvoicePaidForMilestone(supabase, milestone.id, paidAt);
 }
 
 /**

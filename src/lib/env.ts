@@ -114,26 +114,29 @@ export function resendFrom(): string {
   return firstEnv("RESEND_FROM") ?? "Paymeify <hello@paymeify.com>";
 }
 
-export function twilioConfig():
-  | { accountSid: string; authToken: string; from: string }
-  | null {
-  const accountSid = firstEnv("TWILIO_ACCOUNT_SID");
-  const authToken = firstEnv("TWILIO_AUTH_TOKEN");
-  const from = firstEnv("TWILIO_FROM");
-  if (!accountSid || !authToken || !from) return null;
-  return { accountSid, authToken, from };
+export function msg91Config(): {
+  authKey: string;
+  senderId?: string;
+  templateId?: string;
+} | null {
+  const authKey = firstEnv("MSG91_AUTH_KEY");
+  if (!authKey) return null;
+  return {
+    authKey,
+    senderId: firstEnv("MSG91_SENDER_ID"),
+    templateId: firstEnv("MSG91_TEMPLATE_ID", "MSG91_FLOW_ID"),
+  };
 }
 
-/** Why SMS will not send, or null if Twilio looks configured. */
-export function twilioMissingReason(): string | null {
-  const accountSid = firstEnv("TWILIO_ACCOUNT_SID");
-  const authToken = firstEnv("TWILIO_AUTH_TOKEN");
-  const from = firstEnv("TWILIO_FROM");
-  if (!accountSid || !authToken) {
-    return "Twilio Account SID and Auth Token are not set on this deployment.";
+/** Why SMS will not send, or null if MSG91 looks configured. */
+export function msg91MissingReason(): string | null {
+  if (!firstEnv("MSG91_AUTH_KEY")) {
+    return "MSG91_AUTH_KEY is not set on this deployment.";
   }
-  if (!from) {
-    return "TWILIO_FROM is empty. Add your Twilio phone number (for example +14155551234) in Vercel.";
+  const senderId = firstEnv("MSG91_SENDER_ID");
+  const templateId = firstEnv("MSG91_TEMPLATE_ID", "MSG91_FLOW_ID");
+  if (!senderId && !templateId) {
+    return "Add MSG91_SENDER_ID (6 characters) or MSG91_TEMPLATE_ID from your MSG91 SMS flow.";
   }
   return null;
 }

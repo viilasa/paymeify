@@ -86,7 +86,7 @@ export default function PrivacyPage() {
           Google’s privacy policy for how they process that data.
         </li>
         <li>
-          Email and SMS providers (Resend and Twilio) when you ask us to notify
+          Email and SMS providers (Resend and MSG91) when you ask us to notify
           a client. We send only the project name, amounts, and the private
           project link to the address or number you entered.
         </li>

@@ -9,9 +9,12 @@ import { ProjectStats } from "@/components/projects/project-stats";
 import { requireSession } from "@/lib/auth";
 import { getProjectDetail, isUuid } from "@/lib/data/projects";
 import { formatDate } from "@/lib/format";
+import { listInvoicesForProject } from "@/lib/invoices";
 import { projectPortalUrl } from "@/lib/payments";
 import { ownerHasAutoPay } from "@/lib/payments/connections";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supportsUpi } from "@/lib/upi";
+import type { Invoice } from "@/lib/supabase/types";
 
 export const metadata: Metadata = { title: "Project" };
 
@@ -28,6 +31,15 @@ export default async function ProjectDetailPage({
 
   const { project, milestones, totals, payments } = detail;
   const portalUrl = projectPortalUrl(project);
+  const supabase = await createSupabaseServerClient();
+  const invoices = await listInvoicesForProject(supabase, project.id);
+  const invoicesByMilestoneId: Record<string, Invoice> = {};
+  for (const invoice of invoices) {
+    const existing = invoicesByMilestoneId[invoice.milestone_id];
+    if (!existing || invoice.issued_at > existing.issued_at) {
+      invoicesByMilestoneId[invoice.milestone_id] = invoice;
+    }
+  }
 
   // UPI transfers the client has told us about but nobody has confirmed yet.
   const reportedMilestoneIds = payments
@@ -37,10 +49,17 @@ export default async function ProjectDetailPage({
   const autoPay = await ownerHasAutoPay(profile.user_id, project.currency);
   const canCollect =
     (Boolean(profile.upi_id) && supportsUpi(project.currency)) || autoPay;
+  const hasUnpaidInvoiceable = milestones.some(
+    (m) => m.payment_status !== "paid" && Number(m.amount) > 0,
+  );
 
   return (
     <div className="space-y-8">
-      <ProjectHeader project={project} portalUrl={portalUrl} />
+      <ProjectHeader
+        project={project}
+        portalUrl={portalUrl}
+        hasUnpaidInvoiceable={hasUnpaidInvoiceable}
+      />
 
       {reportedMilestoneIds.length > 0 ? (
         <p className="rounded-[8px] border border-warning/25 bg-warning/5 px-3.5 py-2.5 text-[12px] leading-relaxed">
@@ -63,6 +82,8 @@ export default async function ProjectDetailPage({
         milestones={milestones}
         paymentsEnabled={autoPay}
         reportedMilestoneIds={reportedMilestoneIds}
+        invoicesByMilestoneId={invoicesByMilestoneId}
+        canEmailInvoice={Boolean(project.client_email)}
       />
 
       <section className="rounded-[10px] border border-border bg-card p-4">

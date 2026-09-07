@@ -3,6 +3,7 @@ import { Settings2 } from "lucide-react";
 
 import { CopyButton } from "@/components/copy-button";
 import { RemindClientButton } from "@/components/projects/remind-client-button";
+import { SendInvoiceButton } from "@/components/projects/send-invoice-button";
 import { ProjectStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/lib/supabase/types";
@@ -10,9 +11,11 @@ import type { Project } from "@/lib/supabase/types";
 export function ProjectHeader({
   project,
   portalUrl,
+  hasUnpaidInvoiceable,
 }: {
   project: Project;
   portalUrl: string;
+  hasUnpaidInvoiceable?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -27,6 +30,10 @@ export function ProjectHeader({
       </div>
 
       <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+        <SendInvoiceButton
+          projectId={project.id}
+          disabled={!hasUnpaidInvoiceable || !project.client_email}
+        />
         <RemindClientButton
           projectId={project.id}
           disabled={!project.client_email && !project.client_phone}

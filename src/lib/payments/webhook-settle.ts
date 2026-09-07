@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 
 import { fromMinorUnits } from "@/lib/format";
+import { markInvoicePaidForMilestone } from "@/lib/invoices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Milestone, PaymentRecordStatus, PaymentProvider } from "@/lib/supabase/types";
 
@@ -44,6 +45,7 @@ export async function settleGatewayPaid(input: {
       .eq("id", milestone.id);
   }
 
+  await markInvoicePaidForMilestone(admin, milestone.id, paidAt);
   await refreshProjectStatus(admin, milestone.project_id);
   await revalidateProject(admin, milestone.project_id);
 }
@@ -199,5 +201,9 @@ async function revalidateProject(admin: Admin, projectId: string) {
   revalidatePath("/dashboard", "layout");
   revalidatePath("/projects");
   revalidatePath(`/projects/${projectId}`);
-  if (project?.public_token) revalidatePath(`/p/${project.public_token}`);
+  revalidatePath(`/projects/${projectId}/settings`);
+  if (project?.public_token) {
+    revalidatePath(`/p/${project.public_token}`);
+    revalidatePath(`/p/${project.public_token}`, "layout");
+  }
 }

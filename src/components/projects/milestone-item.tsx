@@ -25,6 +25,7 @@ import {
   setMilestoneStatusAction,
 } from "@/app/(app)/projects/actions";
 import { CopyButton } from "@/components/copy-button";
+import { SendInvoiceButton } from "@/components/projects/send-invoice-button";
 import { MilestoneStatusBadge, PaymentStatusTag } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDate, formatMoney, formatPosition } from "@/lib/format";
-import type { Milestone } from "@/lib/supabase/types";
+import type { Invoice, Milestone } from "@/lib/supabase/types";
 import { useServerAction } from "@/lib/use-server-action";
 
 interface MilestoneItemProps {
@@ -48,6 +49,8 @@ interface MilestoneItemProps {
   paymentsEnabled: boolean;
   /** The client says they sent a UPI transfer for this one. */
   paymentReported: boolean;
+  invoice?: Invoice | null;
+  canEmailInvoice?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -60,6 +63,8 @@ export function MilestoneItem({
   isLast,
   paymentsEnabled,
   paymentReported,
+  invoice,
+  canEmailInvoice,
   onEdit,
   onDelete,
 }: MilestoneItemProps) {
@@ -68,6 +73,7 @@ export function MilestoneItem({
 
   const isPaid = milestone.payment_status === "paid";
   const hasLink = Boolean(milestone.payment_link_url);
+  const canInvoice = !isPaid && Number(milestone.amount) > 0;
 
   return (
     <li className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:gap-4">
@@ -90,7 +96,22 @@ export function MilestoneItem({
         <p className="mt-1.5 text-[11px] text-subtle-foreground">
           Due {formatDate(milestone.due_date)}
           {milestone.paid_at ? ` · Paid ${formatDate(milestone.paid_at)}` : ""}
+          {invoice
+            ? ` · ${invoice.number}${invoice.status === "paid" ? " · Paid" : " · Sent"}`
+            : ""}
         </p>
+
+        {canInvoice ? (
+          <div className="mt-3">
+            <SendInvoiceButton
+              projectId={projectId}
+              milestoneId={milestone.id}
+              disabled={!canEmailInvoice}
+              size="sm"
+              label={invoice ? `Resend ${invoice.number}` : "Send invoice"}
+            />
+          </div>
+        ) : null}
 
         {/* The client has reported a transfer and is waiting on confirmation. */}
         {!isPaid && paymentReported ? (

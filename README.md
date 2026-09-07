@@ -129,15 +129,19 @@ For local webhook testing, tunnel the dev server (`ngrok http 3000`) and set
 The client portal then offers **Pay** (marks itself paid) next to the GPay QR
 (still confirmed by you).
 
-### 5. Client email and SMS
+### 5. Client email, SMS, and invoices
 
 Add the client’s email and/or mobile on the project. Paymeify then sends:
 
 - the project link when you create the project
-- a notice when you mark a milestone **Completed** (and asks them to pay if it is unpaid)
+- an **invoice** when you mark a milestone **Completed** (if the milestone is unpaid and has an amount), or when you tap **Send invoice**
 - a payment reminder you trigger from the project, plus a daily reminder for unpaid current milestones (at most once every 3 days)
 
-Email goes through [Resend](https://resend.com). SMS goes through [Twilio](https://www.twilio.com). Set `RESEND_API_KEY`, `RESEND_FROM`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, and `CRON_SECRET` in Vercel. Without those keys the project still saves; the client is just not contacted.
+Invoices are numbered per freelancer (`INV-0001`, …), emailed via Resend, and have a printable page at `/p/[token]/invoice/[position]`. They are payment invoices, not GST tax invoices.
+
+Email goes through [Resend](https://resend.com). SMS goes through [MSG91](https://msg91.com) when configured. Set `RESEND_API_KEY`, `RESEND_FROM`, optionally `MSG91_AUTH_KEY` / `MSG91_SENDER_ID` / `MSG91_TEMPLATE_ID`, and `CRON_SECRET` in Vercel. Without those keys the project still saves; the client is just not contacted.
+
+MSG91 Flow template variables: `name`, `project`, `link`, `extra`, `token`. Example: `##name## shared ##project## on Paymeify. ##extra## ##link##`
 
 Verify `www.paymeify.com` on Resend so `RESEND_FROM` can be an `@paymeify.com` address.
 

@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Client notifications: phone on the project, a send log, RLS for owners.
--- Email/SMS themselves run in the app (Resend + Twilio), not in Postgres.
+-- Email/SMS themselves run in the app (Resend + MSG91), not in Postgres.
 -- =============================================================================
 
 alter table public.projects

@@ -9,7 +9,7 @@ import { MilestoneForm } from "@/components/projects/milestone-form";
 import { MilestoneItem } from "@/components/projects/milestone-item";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import type { Milestone } from "@/lib/supabase/types";
+import type { Invoice, Milestone } from "@/lib/supabase/types";
 import { useServerAction } from "@/lib/use-server-action";
 
 interface MilestoneListProps {
@@ -20,6 +20,8 @@ interface MilestoneListProps {
   paymentsEnabled: boolean;
   /** Milestones the client has reported a UPI transfer for, awaiting confirmation. */
   reportedMilestoneIds: string[];
+  invoicesByMilestoneId?: Record<string, Invoice>;
+  canEmailInvoice?: boolean;
 }
 
 type Editing = { mode: "add" } | { mode: "edit"; milestone: Milestone } | null;
@@ -30,6 +32,8 @@ export function MilestoneList({
   milestones,
   paymentsEnabled,
   reportedMilestoneIds,
+  invoicesByMilestoneId = {},
+  canEmailInvoice = false,
 }: MilestoneListProps) {
   const reported = React.useMemo(
     () => new Set(reportedMilestoneIds),
@@ -80,6 +84,8 @@ export function MilestoneList({
               isLast={index === milestones.length - 1}
               paymentsEnabled={paymentsEnabled}
               paymentReported={reported.has(milestone.id)}
+              invoice={invoicesByMilestoneId[milestone.id] ?? null}
+              canEmailInvoice={canEmailInvoice}
               onEdit={() => setEditing({ mode: "edit", milestone })}
               onDelete={() => setDeleting(milestone)}
             />
