@@ -134,7 +134,9 @@ The client portal then offers **Pay** (marks itself paid) next to the GPay QR
 Add the client’s email and/or mobile on the project. Paymeify then sends:
 
 - the project link when you create the project
-- an **invoice** when you mark a milestone **Completed** (if the milestone is unpaid and has an amount), or when you tap **Send invoice**
+- a notice when you mark a milestone **Completed**
+- an **invoice** when you tap **Send invoice** (due / please pay)
+- a **paid invoice** automatically when you confirm payment (or a gateway webhook marks it paid)
 - a payment reminder you trigger from the project, plus a daily reminder for unpaid current milestones (at most once every 3 days)
 
 Invoices are numbered per freelancer (`INV-0001`, …), emailed via Resend, and have a printable page at `/p/[token]/invoice/[position]`. They are payment invoices, not GST tax invoices.

@@ -12,6 +12,7 @@ import {
   invoicePublicUrl,
   markInvoiceSent,
 } from "@/lib/invoices";
+import { emailPaidInvoiceReceipt } from "@/lib/invoice-mail";
 import { notifyClient, recentlyReminded } from "@/lib/notify";
 import { composePhone, DEFAULT_DIAL_CODE, normalizePhone } from "@/lib/phone";
 import {
@@ -159,19 +160,8 @@ async function notifyMilestoneCompletedOrInvoice(input: {
   milestone: Milestone;
   profile: { name: string; business_name: string | null };
 }): Promise<{ message?: string; error?: string }> {
-  const unpaid = input.milestone.payment_status !== "paid" && Number(input.milestone.amount) > 0;
-  if (unpaid) {
-    const result = await sendInvoiceForMilestone(input);
-    if (result.emailed) {
-      return { message: `Invoice ${result.number} emailed to the client.` };
-    }
-    return {
-      error: result.error
-        ? `Milestone completed, but the invoice was not emailed: ${result.error}`
-        : "Milestone completed, but the invoice was not emailed.",
-    };
-  }
-
+  // Due invoices are sent only via "Send invoice". Completing a milestone
+  // just notifies the client that work is ready.
   const supabase = await createSupabaseServerClient();
   await notifyClient({
     db: supabase,
@@ -283,52 +273,12 @@ export async function createProjectAction(
   redirect(`/projects/${newProjectId}`);
 }
 
-async function sendInvoicesForUnpaidMilestones(input: {
-  project: Project;
-  profile: { name: string; business_name: string | null };
-}): Promise<{ emailed: number; unpaid: number; lastError?: string }> {
-  const supabase = await createSupabaseServerClient();
-  const { data: milestones } = await supabase
-    .from("milestones")
-    .select("*")
-    .eq("project_id", input.project.id)
-    .order("position", { ascending: true });
-
-  const unpaid = (milestones ?? []).filter(
-    (m) => m.payment_status !== "paid" && Number(m.amount) > 0,
-  );
-
-  if (unpaid.length === 0) return { emailed: 0, unpaid: 0 };
-
-  if (!input.project.client_email?.trim()) {
-    return {
-      emailed: 0,
-      unpaid: unpaid.length,
-      lastError: "Add a client email in project settings to email invoices.",
-    };
-  }
-
-  let emailed = 0;
-  let lastError: string | undefined;
-  for (const milestone of unpaid) {
-    const result = await sendInvoiceForMilestone({
-      project: input.project,
-      milestone,
-      profile: input.profile,
-    });
-    if (result.emailed) emailed += 1;
-    else if (result.error) lastError = result.error;
-  }
-  return { emailed, unpaid: unpaid.length, lastError };
-}
-
 export async function updateProjectAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   try {
     const project = await requireOwnedProject(formData.get("project_id"));
-    const { profile } = await requireSession();
 
     const parsed = projectSettingsSchema.safeParse({
       ...readProjectFields(formData),
@@ -346,39 +296,6 @@ export async function updateProjectAction(
       .eq("id", project.id);
 
     if (error) throw new AppError("Could not save your changes.");
-
-    const becameCompleted =
-      parsed.data.status === "completed" && project.status !== "completed";
-
-    if (becameCompleted) {
-      const updatedProject = { ...project, ...parsed.data };
-      const sent = await sendInvoicesForUnpaidMilestones({
-        project: updatedProject,
-        profile,
-      });
-      revalidateProject(project.id, project.public_token);
-
-      if (sent.unpaid === 0) {
-        return success(
-          "Project updated. No unpaid milestones left to invoice (already paid ones do not get a due invoice).",
-        );
-      }
-      if (sent.emailed > 0 && sent.emailed === sent.unpaid) {
-        return success(
-          sent.emailed === 1
-            ? "Project updated. Invoice emailed for the unpaid milestone."
-            : `Project updated. ${sent.emailed} invoices emailed for unpaid milestones.`,
-        );
-      }
-      if (sent.emailed > 0) {
-        return failure(
-          `Project saved and ${sent.emailed} invoice(s) emailed, but some failed: ${sent.lastError ?? "check Resend."}`,
-        );
-      }
-      return failure(
-        `Project saved, but invoices were not emailed: ${sent.lastError ?? "check client email and Resend."}`,
-      );
-    }
 
     revalidateProject(project.id, project.public_token);
     return success("Project updated.");
@@ -699,10 +616,30 @@ export async function markMilestonePaidAction(
       formData.get("project_id"),
       formData.get("milestone_id"),
     );
+    const { profile } = await requireSession();
+    const supabase = await createSupabaseServerClient();
 
     await settleMilestoneManually(project.id, milestone.id);
 
+    const mailed = await emailPaidInvoiceReceipt({
+      db: supabase,
+      project,
+      milestone,
+      profile,
+    });
+
     revalidateProject(project.id, project.public_token);
+
+    if (mailed.emailed) {
+      return success(
+        `${milestone.title} marked as paid. Invoice ${mailed.number} emailed to the client.`,
+      );
+    }
+    if (mailed.error) {
+      return success(
+        `${milestone.title} marked as paid. Paid invoice was not emailed: ${mailed.error}`,
+      );
+    }
     return success(`${milestone.title} marked as paid.`);
   } catch (error) {
     return failure(toUserMessage(error, "Could not mark the milestone paid."));

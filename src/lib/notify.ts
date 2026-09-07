@@ -22,7 +22,9 @@ export type NotifyInput = {
   profile: Pick<Profile, "name" | "business_name">;
   kind: NotificationKind;
   milestone?: Pick<Milestone, "id" | "title" | "amount" | "position">;
-  invoice?: Pick<Invoice, "number" | "line_title" | "amount" | "currency" | "due_date">;
+  invoice?: Pick<Invoice, "number" | "line_title" | "amount" | "currency" | "due_date" | "status">;
+  /** Paid invoice / receipt email after payment is confirmed. */
+  receipt?: boolean;
   skipEmail?: boolean;
   skipSms?: boolean;
 };
@@ -97,6 +99,19 @@ ${amount ? `<p>Amount due: <strong>${escapeHtml(amount)}</strong></p>` : ""}
     const inv = input.invoice;
     const invAmount = formatMoney(Number(inv.amount), inv.currency);
     const invoiceLink = invoicePublicUrl(input.project, input.milestone.position);
+    const isPaid = input.receipt || inv.status === "paid";
+    if (isPaid) {
+      return {
+        subject: `Payment received — ${inv.number}`,
+        preview: `${from} confirmed payment of ${invAmount} for ${inv.line_title}.`,
+        htmlBody: `<p>${escapeHtml(from)} confirmed your payment for <strong>${escapeHtml(input.project.name)}</strong>.</p>
+<p><strong>${escapeHtml(inv.number)}</strong> · ${escapeHtml(inv.line_title)} · <strong>${escapeHtml(invAmount)}</strong></p>
+<p>Status: <strong>Paid</strong></p>
+<p><a href="${escapeHtml(invoiceLink)}" style="display:inline-block;margin:8px 0;padding:10px 16px;background:#f5f5f5;color:#090909;border-radius:8px;text-decoration:none;font-weight:600;">View invoice</a></p>`,
+        sms: `${from}: payment received for ${inv.line_title} (${invAmount}). ${invoiceLink}`,
+        vars: vars(`Paid ${inv.number}: ${invAmount}`),
+      };
+    }
     return {
       subject: `Invoice ${inv.number} — ${input.project.name}`,
       preview: `${from} sent invoice ${inv.number} for ${inv.line_title} (${invAmount}).`,

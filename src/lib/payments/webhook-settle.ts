@@ -1,9 +1,16 @@
 import { revalidatePath } from "next/cache";
 
 import { fromMinorUnits } from "@/lib/format";
+import { emailPaidInvoiceReceipt } from "@/lib/invoice-mail";
 import { markInvoicePaidForMilestone } from "@/lib/invoices";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { Milestone, PaymentRecordStatus, PaymentProvider } from "@/lib/supabase/types";
+import type {
+  Milestone,
+  PaymentRecordStatus,
+  PaymentProvider,
+  Project,
+  Profile,
+} from "@/lib/supabase/types";
 
 type Admin = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -46,6 +53,32 @@ export async function settleGatewayPaid(input: {
   }
 
   await markInvoicePaidForMilestone(admin, milestone.id, paidAt);
+
+  const { data: project } = await admin
+    .from("projects")
+    .select("*")
+    .eq("id", milestone.project_id)
+    .maybeSingle();
+
+  if (project) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("name, business_name")
+      .eq("user_id", project.user_id)
+      .maybeSingle();
+
+    await emailPaidInvoiceReceipt({
+      db: admin,
+      project: project as Project,
+      milestone: { ...milestone, payment_status: "paid", paid_at: paidAt, status: "completed" },
+      profile: (profile as Pick<Profile, "name" | "business_name"> | null) ?? {
+        name: "Your freelancer",
+        business_name: null,
+      },
+      paidAt,
+    });
+  }
+
   await refreshProjectStatus(admin, milestone.project_id);
   await revalidateProject(admin, milestone.project_id);
 }
