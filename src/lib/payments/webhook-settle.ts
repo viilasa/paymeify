@@ -1,8 +1,9 @@
 import { revalidatePath } from "next/cache";
 
-import { fromMinorUnits } from "@/lib/format";
+import { fromMinorUnits, toMinorUnits } from "@/lib/format";
 import { emailPaidInvoiceReceipt } from "@/lib/invoice-mail";
 import { markInvoicePaidForMilestone } from "@/lib/invoices";
+import { notifyFreelancerOfPayment } from "@/lib/notify";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   Milestone,
@@ -14,6 +15,9 @@ import type {
 
 type Admin = ReturnType<typeof createSupabaseAdminClient>;
 
+/** Allow 1 minor unit of float/rounding noise; reject everything else. */
+const AMOUNT_TOLERANCE_MINOR = 1;
+
 export async function settleGatewayPaid(input: {
   gateway: PaymentProvider;
   checkoutId: string;
@@ -22,16 +26,41 @@ export async function settleGatewayPaid(input: {
   milestoneId?: string;
   amountMinor?: number;
   currency?: string;
-}): Promise<void> {
+}): Promise<"settled" | "skipped"> {
   const admin = createSupabaseAdminClient();
   const milestone = await findMilestone(admin, input);
   if (!milestone) {
     console.warn(`${input.gateway} webhook: no milestone for ${input.checkoutId}`);
-    return;
+    return "skipped";
   }
 
-  const amount =
-    fromMinorUnits(input.amountMinor ?? 0) || Number(milestone.amount);
+  if (milestone.payment_status === "paid") {
+    return "settled";
+  }
+
+  if (input.amountMinor == null || !(input.amountMinor > 0)) {
+    console.error(
+      `${input.gateway} settle refused: missing provider amount for ${input.checkoutId}`,
+    );
+    return "skipped";
+  }
+
+  const expectedMinor = toMinorUnits(Number(milestone.amount));
+  if (Math.abs(input.amountMinor - expectedMinor) > AMOUNT_TOLERANCE_MINOR) {
+    console.error(
+      `${input.gateway} settle refused: amount mismatch for milestone ${milestone.id}`,
+      { gotMinor: input.amountMinor, expectedMinor, checkoutId: input.checkoutId },
+    );
+    // Record failure without granting paid. Freelancer can release checkout.
+    await admin
+      .from("milestones")
+      .update({ payment_status: "failed" })
+      .eq("id", milestone.id)
+      .neq("payment_status", "paid");
+    return "skipped";
+  }
+
+  const amount = fromMinorUnits(input.amountMinor);
   const paidAt = new Date().toISOString();
 
   await recordPayment(admin, {
@@ -45,12 +74,10 @@ export async function settleGatewayPaid(input: {
     paidAt,
   });
 
-  if (milestone.payment_status !== "paid") {
-    await admin
-      .from("milestones")
-      .update({ payment_status: "paid", status: "completed", paid_at: paidAt })
-      .eq("id", milestone.id);
-  }
+  await admin
+    .from("milestones")
+    .update({ payment_status: "paid", status: "completed", paid_at: paidAt })
+    .eq("id", milestone.id);
 
   await markInvoicePaidForMilestone(admin, milestone.id, paidAt);
 
@@ -63,14 +90,34 @@ export async function settleGatewayPaid(input: {
   if (project) {
     const { data: profile } = await admin
       .from("profiles")
-      .select("name, business_name")
+      .select("name, business_name, email")
       .eq("user_id", project.user_id)
       .maybeSingle();
+
+    const settledMilestone = {
+      ...milestone,
+      payment_status: "paid" as const,
+      paid_at: paidAt,
+      status: "completed" as const,
+    };
+
+    await notifyFreelancerOfPayment({
+      toEmail: profile?.email,
+      freelancerName: profile?.name ?? "there",
+      projectName: project.name,
+      clientName: project.client_name,
+      milestoneTitle: milestone.title,
+      amount,
+      currency: input.currency ?? project.currency ?? "INR",
+      projectId: project.id,
+      kind: "settled",
+      source: input.gateway,
+    });
 
     await emailPaidInvoiceReceipt({
       db: admin,
       project: project as Project,
-      milestone: { ...milestone, payment_status: "paid", paid_at: paidAt, status: "completed" },
+      milestone: settledMilestone,
       profile: (profile as Pick<Profile, "name" | "business_name"> | null) ?? {
         name: "Your freelancer",
         business_name: null,
@@ -81,6 +128,7 @@ export async function settleGatewayPaid(input: {
 
   await refreshProjectStatus(admin, milestone.project_id);
   await revalidateProject(admin, milestone.project_id);
+  return "settled";
 }
 
 export async function settleGatewayClosed(input: {

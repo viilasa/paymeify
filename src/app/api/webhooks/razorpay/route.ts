@@ -46,7 +46,6 @@ const webhookBody = z.object({
 
 const HANDLED = new Set([
   "payment_link.paid",
-  "payment_link.partially_paid",
   "payment_link.expired",
   "payment_link.cancelled",
 ]);
@@ -80,8 +79,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true, ignored: event });
   }
 
+  const headerEventId = request.headers.get("x-razorpay-event-id")?.trim();
+  const paymentEntityId = payload.payment?.entity.id;
+  // Prefer Razorpay's durable event id. Fall back only when we have a payment id
+  // so two different paid payloads cannot share the same claim key.
   const eventId =
-    request.headers.get("x-razorpay-event-id") ?? `${event}:${link.id}`;
+    headerEventId ||
+    (paymentEntityId ? `${event}:${link.id}:${paymentEntityId}` : null) ||
+    (event !== "payment_link.paid" ? `${event}:${link.id}` : null);
+
+  if (!eventId) {
+    console.error("razorpay webhook: missing x-razorpay-event-id for paid event", link.id);
+    return NextResponse.json(
+      { error: "Missing event id" },
+      { status: 400 },
+    );
+  }
 
   try {
     const claim = await claimWebhookEvent(eventId, "razorpay", event);
@@ -95,14 +108,16 @@ export async function POST(request: NextRequest) {
 
   try {
     if (event === "payment_link.paid") {
+      const amountMinor =
+        payload.payment?.entity.amount ?? link.amount_paid ?? link.amount;
       await settleGatewayPaid({
         gateway: "razorpay",
         checkoutId: link.id,
-        paymentId: payload.payment?.entity.id ?? null,
+        paymentId: paymentEntityId ?? null,
         projectId,
         milestoneId: link.notes?.milestone_id,
-        amountMinor: link.amount_paid ?? link.amount,
-        currency: link.currency,
+        amountMinor,
+        currency: payload.payment?.entity.currency ?? link.currency,
       });
     } else if (event === "payment_link.expired") {
       await settleGatewayClosed({

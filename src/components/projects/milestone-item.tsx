@@ -144,7 +144,9 @@ export function MilestoneItem({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {hasLink ? (
               <>
-                <span className="text-[11px] text-muted-foreground">Payment ready</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Checkout open — release it if the client paid but this is still unpaid
+                </span>
                 <CopyButton
                   size="sm"
                   value={milestone.payment_link_url ?? ""}
@@ -158,7 +160,7 @@ export function MilestoneItem({
                   onClick={() => run(cancelPaymentAction, ids)}
                 >
                   <Link2Off />
-                  Cancel link
+                  Release checkout
                 </Button>
               </>
             ) : (

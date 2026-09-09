@@ -4,12 +4,17 @@ import { z } from "zod";
 import { AppError } from "@/lib/action-result";
 import { isValidToken } from "@/lib/data/public-project";
 import { assertPayableMilestone, ensureMilestonePaymentLink } from "@/lib/payments";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({ position: z.number().int().positive().max(1000) });
+
+/** ~10 pay starts per project+IP per minute. */
+const PAY_LIMIT = 10;
+const PAY_WINDOW_MS = 60_000;
 
 /**
  * Public endpoint used by the client portal to start a payment.
@@ -25,6 +30,17 @@ export async function POST(
   try {
     const { token } = await params;
     if (!isValidToken(token)) return badRequest("This project link is not valid.");
+
+    const limited = rateLimit(`pay:${token}:${clientIp(request)}`, PAY_LIMIT, PAY_WINDOW_MS);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Too many payment attempts. Wait a minute and try again." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limited.retryAfterSec) },
+        },
+      );
+    }
 
     const body = bodySchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return badRequest("That request was not understood.");

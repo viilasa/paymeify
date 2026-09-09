@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/payment-reminders",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/payment-reconcile",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

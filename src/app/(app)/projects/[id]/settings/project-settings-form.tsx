@@ -155,8 +155,9 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
       <section className="rounded-[10px] border border-border bg-card p-4">
         <h2 className="text-[13px] font-medium">Client link</h2>
         <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-muted-foreground">
-          Generating a new link immediately breaks the one you already shared. Use this
-          if the link reached someone it should not have.
+          Anyone with the current link can see project amounts and pay. Generating a
+          new link immediately breaks the one you already shared — use this if the
+          link reached someone it should not have.
         </p>
         <Button
           className="mt-3"
@@ -188,7 +189,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
         open={confirm === "regenerate"}
         onOpenChange={(open) => !open && setConfirm(null)}
         title="Generate a new client link?"
-        description="The current link stops working right away. You will need to send the new one to your client."
+        description="Anyone with the old link loses access right away. Send the new link to your client."
         confirmLabel="Generate new link"
         pending={pending}
         onConfirm={() =>

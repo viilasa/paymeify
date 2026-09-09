@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 
 import { PaymentButton } from "@/components/client-portal/payment-button";
-import { PaymentConfirming } from "@/components/client-portal/payment-confirming";
+import { PaymentReturnBanner } from "@/components/client-portal/payment-return-banner";
 import { UpiPayment } from "@/components/client-portal/upi-payment";
 import { Logo } from "@/components/logo";
 import { ProgressBar } from "@/components/progress-bar";
@@ -44,7 +44,6 @@ export async function ClientProjectView({
   const paidMilestone = returnedFrom
     ? milestones.find((m) => m.position === returnedFrom)
     : undefined;
-  const awaitingConfirmation = Boolean(paidMilestone) && paidMilestone?.payment_status !== "paid";
   const everythingPaid = totals.milestoneCount > 0 && totals.remaining === 0;
 
   const payable = current && current.amount > 0 ? current : undefined;
@@ -66,20 +65,11 @@ export async function ClientProjectView({
 
       {paidMilestone ? (
         <div className="mt-6">
-          {awaitingConfirmation ? (
-            <>
-              <Banner tone="pending">
-                Payment received. We are confirming it — this page will update on its
-                own in a moment.
-              </Banner>
-              <PaymentConfirming />
-            </>
-          ) : (
-            <Banner tone="success">
-              Payment successful. The {paidMilestone.title} milestone has been paid.
-              {current ? " Your next milestone is below." : ""}
-            </Banner>
-          )}
+          <PaymentReturnBanner
+            milestoneTitle={paidMilestone.title}
+            isPaid={paidMilestone.payment_status === "paid"}
+            hasNext={Boolean(current) && paidMilestone.payment_status === "paid"}
+          />
         </div>
       ) : null}
 
@@ -250,7 +240,7 @@ function MilestoneRow({
       {showPayment && autoPay ? (
         <div className="mt-4 border-t border-border pt-4">
           <p className="mb-3 text-[12px] text-muted-foreground">
-            Pay here and this milestone marks itself paid.
+            Pay here. This milestone updates when the payment clears.
           </p>
           <PaymentButton
             token={token}
@@ -290,8 +280,10 @@ function statusLabel(milestone: PublicMilestone): string {
   if (milestone.payment_status === "paid") {
     return milestone.paid_at ? `Completed · paid ${formatDate(milestone.paid_at)}` : "Completed";
   }
-  if (milestone.payment_reported) return "Payment reported · awaiting confirmation";
-  if (milestone.payment_status === "pending") return "Partially paid";
+  if (milestone.payment_reported || milestone.payment_status === "pending") {
+    return "Awaiting payment confirmation";
+  }
+  if (milestone.payment_status === "failed") return "Payment failed · try again or contact them";
   if (milestone.status === "in_progress") return "In progress";
   if (milestone.status === "completed") return "Completed · awaiting payment";
   return "Pending";
@@ -319,26 +311,5 @@ function Total({
         {value}
       </dd>
     </div>
-  );
-}
-
-function Banner({
-  tone,
-  children,
-}: {
-  tone: "success" | "pending";
-  children: React.ReactNode;
-}) {
-  return (
-    <p
-      className={cn(
-        "rounded-[8px] border px-3.5 py-2.5 text-[12px] leading-relaxed",
-        tone === "success"
-          ? "border-success/20 bg-success-muted text-success"
-          : "border-border bg-surface text-muted-foreground",
-      )}
-    >
-      {children}
-    </p>
   );
 }

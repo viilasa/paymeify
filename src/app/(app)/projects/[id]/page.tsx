@@ -89,7 +89,9 @@ export default async function ProjectDetailPage({
       <section className="rounded-[10px] border border-border bg-card p-4">
         <h2 className="text-[13px] font-medium">Client link</h2>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          Anyone with this link can view progress and pay. No account needed.
+          Anyone with this link can see amounts and pay milestones. No account
+          needed. If it leaks, generate a new link in project settings — the old
+          one stops working immediately.
         </p>
         {!canCollect ? (
           <p className="mt-3 rounded-[8px] border border-warning/25 bg-warning/5 px-3 py-2 text-[12px] leading-relaxed text-foreground">

@@ -47,6 +47,13 @@ export async function ensureMilestonePaymentLink(
   }
 
   if (milestone.payment_link_id && milestone.payment_link_url) {
+    if (milestone.payment_status === "unpaid" || milestone.payment_status === "failed") {
+      await admin
+        .from("milestones")
+        .update({ payment_status: "pending" })
+        .eq("id", milestone.id)
+        .neq("payment_status", "paid");
+    }
     return { url: milestone.payment_link_url, id: milestone.payment_link_id, reused: true };
   }
 
@@ -87,7 +94,11 @@ export async function ensureMilestonePaymentLink(
   // Claim the milestone only if no other request got there first.
   const { data: claimed } = await admin
     .from("milestones")
-    .update({ payment_link_id: created.id, payment_link_url: created.url })
+    .update({
+      payment_link_id: created.id,
+      payment_link_url: created.url,
+      payment_status: "pending",
+    })
     .eq("id", milestone.id)
     .is("payment_link_id", null)
     .select("payment_link_id, payment_link_url")
@@ -165,13 +176,12 @@ export async function releaseMilestonePaymentLink(milestoneId: string): Promise<
 /**
  * Marks a milestone paid because the freelancer confirmed the money arrived.
  *
- * This is the settlement path for UPI and anything else that lands outside a
- * gateway — a bank transfer, or cash. There is no webhook to trust for those,
- * so the freelancer checking their own account *is* the verification step.
+ * Settlement paths that may set payment_status = paid:
+ * 1. Verified Razorpay/Stripe webhook (settleGatewayPaid)
+ * 2. Reconcile cron after provider fetch (settleGatewayPaid)
+ * 3. This manual confirm (UPI / off-gateway)
  *
- * Runs with the service role because milestone payment columns are blocked for
- * the `authenticated` role at the database level. Callers must authorise the
- * request before calling this.
+ * Client redirects and “I have paid” never mark paid.
  */
 export async function settleMilestoneManually(
   projectId: string,

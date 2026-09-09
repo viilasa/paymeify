@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { cronSecret, msg91Config, msg91MissingReason, resendApiKey, resendFrom } from "@/lib/env";
+import { appUrl, cronSecret, msg91Config, msg91MissingReason, resendApiKey, resendFrom } from "@/lib/env";
 import { formatMoney } from "@/lib/format";
 import { invoicePublicUrl } from "@/lib/invoices";
 import { projectPortalUrl } from "@/lib/payments";
@@ -364,6 +364,70 @@ export async function notifyClient(
   }
 
   return result;
+}
+
+/**
+ * Emails the freelancer when a client pays (gateway) or reports a UPI transfer.
+ * Never throws — settlement must succeed even if Resend is down.
+ */
+export async function notifyFreelancerOfPayment(input: {
+  toEmail: string | null | undefined;
+  freelancerName: string;
+  projectName: string;
+  clientName: string;
+  milestoneTitle: string;
+  amount: number;
+  currency: string;
+  projectId: string;
+  /** Gateway settle vs UPI claim awaiting confirm. */
+  kind: "settled" | "reported";
+  source?: "razorpay" | "stripe" | "upi";
+}): Promise<{ ok: boolean; error?: string }> {
+  const to = input.toEmail?.trim();
+  if (!to) return { ok: false, error: "Freelancer email missing." };
+  if (!resendApiKey()) {
+    return { ok: false, error: "RESEND_API_KEY is not set on this deployment." };
+  }
+
+  const amount = formatMoney(input.amount, input.currency);
+  const dashboardUrl = `${appUrl()}/projects/${input.projectId}`;
+  const name = input.freelancerName.trim() || "there";
+
+  const settled = input.kind === "settled";
+  const via =
+    input.source === "razorpay"
+      ? " via Razorpay"
+      : input.source === "stripe"
+        ? " via Stripe"
+        : input.source === "upi"
+          ? " (UPI)"
+          : "";
+
+  const subject = settled
+    ? `Payment received · ${amount} · ${input.projectName}`
+    : `Client reported payment · ${amount} · ${input.projectName}`;
+
+  const htmlBody = settled
+    ? `<p>Hi ${escapeHtml(name)},</p>
+<p><strong>${escapeHtml(input.clientName)}</strong> paid <strong>${escapeHtml(amount)}</strong> for <strong>${escapeHtml(input.milestoneTitle)}</strong> on <strong>${escapeHtml(input.projectName)}</strong>${via}.</p>
+<p>The milestone is marked paid in Paymeify.</p>
+<p><a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;margin:8px 0;padding:10px 16px;background:#f5f5f5;color:#090909;border-radius:8px;text-decoration:none;font-weight:600;">Open project</a></p>`
+    : `<p>Hi ${escapeHtml(name)},</p>
+<p><strong>${escapeHtml(input.clientName)}</strong> reported a UPI payment of <strong>${escapeHtml(amount)}</strong> for <strong>${escapeHtml(input.milestoneTitle)}</strong> on <strong>${escapeHtml(input.projectName)}</strong>.</p>
+<p>Check your bank, then confirm the payment in Paymeify so the milestone updates.</p>
+<p><a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;margin:8px 0;padding:10px 16px;background:#f5f5f5;color:#090909;border-radius:8px;text-decoration:none;font-weight:600;">Confirm payment</a></p>`;
+
+  const text = settled
+    ? `${input.clientName} paid ${amount} for ${input.milestoneTitle} on ${input.projectName}${via}.\n\n${dashboardUrl}`
+    : `${input.clientName} reported a UPI payment of ${amount} for ${input.milestoneTitle} on ${input.projectName}. Confirm in Paymeify:\n\n${dashboardUrl}`;
+
+  try {
+    const mailed = await sendEmail(to, subject, wrapHtml(subject, htmlBody), text);
+    return mailed;
+  } catch (error) {
+    console.error("Freelancer payment email threw", error);
+    return { ok: false, error: "Email failed to send." };
+  }
 }
 
 export function isCronAuthorized(request: Request): boolean {

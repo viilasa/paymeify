@@ -693,7 +693,7 @@ export async function cancelPaymentAction(
     await releaseMilestonePaymentLink(milestone.id);
 
     revalidateProject(project.id, project.public_token);
-    return success("Payment link cancelled.");
+    return success("Checkout released. You can confirm a manual payment or create a new link.");
   } catch (error) {
     return failure(toUserMessage(error, "Could not cancel the payment link."));
   }

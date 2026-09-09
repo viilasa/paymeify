@@ -59,7 +59,7 @@ export function MilestoneStatusBadge({
 
 const paymentStatusMeta: Record<PaymentStatus, { label: string; className: string }> = {
   unpaid: { label: "UNPAID", className: "text-subtle-foreground" },
-  pending: { label: "PENDING", className: "text-warning" },
+  pending: { label: "AWAITING", className: "text-warning" },
   paid: { label: "PAID", className: "text-success" },
   failed: { label: "FAILED", className: "text-danger" },
 };

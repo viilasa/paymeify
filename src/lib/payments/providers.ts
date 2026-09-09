@@ -64,6 +64,69 @@ export async function cancelCheckout(
   }
 }
 
+export type CheckoutLookup =
+  | {
+      state: "paid";
+      paymentId: string | null;
+      amountMinor: number;
+      currency?: string;
+    }
+  | { state: "open" }
+  | { state: "closed"; reason: "expired" | "cancelled" }
+  | { state: "unknown" };
+
+/** Ask the provider what happened to a checkout — used by the reconcile cron. */
+export async function fetchCheckoutStatus(
+  provider: PaymentProvider,
+  credentials: GatewayCredentials,
+  checkoutId: string,
+): Promise<CheckoutLookup> {
+  if (provider === "razorpay") {
+    try {
+      const link = await razorpayClient(credentials).paymentLink.fetch(checkoutId);
+      const status = String(link.status ?? "");
+      if (status === "paid") {
+        const amountMinor = Number(link.amount_paid ?? link.amount ?? 0);
+        return {
+          state: "paid",
+          paymentId: null,
+          amountMinor,
+          currency: typeof link.currency === "string" ? link.currency : undefined,
+        };
+      }
+      if (status === "expired") return { state: "closed", reason: "expired" };
+      if (status === "cancelled") return { state: "closed", reason: "cancelled" };
+      // created | partially_paid — still open; do not treat partial as settled
+      return { state: "open" };
+    } catch (error) {
+      console.warn("razorpay.paymentLink.fetch failed", error);
+      return { state: "unknown" };
+    }
+  }
+
+  try {
+    const session = await stripeClient(credentials.secret).checkout.sessions.retrieve(
+      checkoutId,
+    );
+    if (session.payment_status === "paid" || session.status === "complete") {
+      return {
+        state: "paid",
+        paymentId:
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : (session.payment_intent?.id ?? null),
+        amountMinor: session.amount_total ?? 0,
+        currency: session.currency?.toUpperCase(),
+      };
+    }
+    if (session.status === "expired") return { state: "closed", reason: "expired" };
+    return { state: "open" };
+  } catch (error) {
+    console.warn("stripe.checkout.sessions.retrieve failed", error);
+    return { state: "unknown" };
+  }
+}
+
 export async function pingProvider(
   provider: PaymentProvider,
   credentials: GatewayCredentials,
