@@ -29,21 +29,38 @@ export function SiteFooter() {
             ))}
           </nav>
         </div>
-        <a
-          href="https://doitlaunch.com/products/paymeify"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block w-[200px] opacity-90 transition-opacity hover:opacity-100"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://doitlaunch.com/badge.png"
-            alt="Launched on Do It Launch"
-            width={200}
-            height={54}
-            className="block w-[200px]"
-          />
-        </a>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="https://doitlaunch.com/products/paymeify"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block w-[200px] opacity-90 transition-opacity hover:opacity-100"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://doitlaunch.com/badge.png"
+              alt="Launched on Do It Launch"
+              width={200}
+              height={54}
+              className="block w-[200px]"
+            />
+          </a>
+          <a
+            href="https://peerpush.com/p/paymeify"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block w-[230px] opacity-90 transition-opacity hover:opacity-100"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://peerpush.com/p/paymeify/badge.png"
+              alt="Paymeify on PeerPush"
+              width={230}
+              height={54}
+              className="block w-[230px]"
+            />
+          </a>
+        </div>
       </div>
     </footer>
   );
