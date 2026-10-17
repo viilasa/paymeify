@@ -4,12 +4,7 @@ import Link from "next/link";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { Button } from "@/components/ui/button";
-import { PLANS } from "@/lib/plans";
 import { graphJsonLd } from "@/lib/seo";
-
-const upgradeMail =
-  "mailto:hello@paymeify.com?subject=" +
-  encodeURIComponent("Upgrade to Pro · ₹399/month");
 
 const steps = [
   {
@@ -89,7 +84,7 @@ const faqs = [
   },
   {
     q: "Is it free?",
-    a: "Yes — start on Free. Pro is ₹399/month if you need more. Gateway fees are whatever Razorpay or Stripe already charge on your account.",
+    a: "Yes, completely free, with unlimited projects. Gateway fees are whatever Razorpay or Stripe already charge on your account.",
   },
   {
     q: "Who is this for?",
@@ -128,11 +123,7 @@ export default function LandingPage() {
               </Button>
             </div>
             <p className="mt-4 text-[12px] text-subtle-foreground">
-              Free to start.{" "}
-              <a href="#pricing" className="underline-offset-2 hover:underline">
-                See pricing
-              </a>
-              . No card. Your payment keys stay yours.
+              Free, unlimited projects. No card. Your payment keys stay yours.
             </p>
           </div>
 
@@ -181,53 +172,6 @@ export default function LandingPage() {
           </dl>
         </Section>
 
-        <section id="pricing" className="scroll-mt-20 border-t border-border">
-          <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-5 sm:py-16">
-            <h2 className="text-[13px] font-medium text-muted-foreground">Pricing</h2>
-            <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-pretty text-muted-foreground">
-              Two plans. No percentage on client payments — gateway fees stay
-              with Razorpay or Stripe.
-            </p>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 sm:gap-5">
-              <PlanCard
-                name={PLANS.free.name}
-                price={PLANS.free.priceLabel}
-                period={PLANS.free.period}
-                blurb={PLANS.free.blurb}
-                features={[...PLANS.free.features]}
-                cta={
-                  <Button asChild variant="secondary" size="lg" className="h-11 w-full">
-                    <Link href="/signup">Start for free</Link>
-                  </Button>
-                }
-              />
-              <PlanCard
-                name={PLANS.pro.name}
-                price={PLANS.pro.priceLabel}
-                period={PLANS.pro.period}
-                blurb={PLANS.pro.blurb}
-                features={[...PLANS.pro.features]}
-                emphasized
-                cta={
-                  <Button asChild variant="primary" size="lg" className="h-11 w-full">
-                    <a href={upgradeMail}>Get Pro</a>
-                  </Button>
-                }
-              />
-            </div>
-            <p className="mt-6 text-[13px] text-subtle-foreground">
-              Need Pro? Email{" "}
-              <a
-                href={upgradeMail}
-                className="text-foreground underline-offset-2 hover:underline"
-              >
-                hello@paymeify.com
-              </a>{" "}
-              and we will enable it on your account.
-            </p>
-          </div>
-        </section>
-
         <Section
           title="What it is not"
           lede="Paymeify is not a wallet, marketplace, or escrow. We do not take a percentage and we do not sit in the middle of the transfer."
@@ -268,7 +212,7 @@ export default function LandingPage() {
                 Send your next project link today.
               </h2>
               <p className="mt-1.5 text-[13px] text-muted-foreground">
-                Free to start. No card required.
+                Free forever. No card required.
               </p>
             </div>
             <Button asChild variant="primary" size="lg" className="h-11 w-full sm:w-auto">
@@ -279,50 +223,6 @@ export default function LandingPage() {
       </main>
 
       <SiteFooter />
-    </div>
-  );
-}
-
-function PlanCard({
-  name,
-  price,
-  period,
-  blurb,
-  features,
-  cta,
-  emphasized,
-}: {
-  name: string;
-  price: string;
-  period: string;
-  blurb: string;
-  features: string[];
-  cta: ReactNode;
-  emphasized?: boolean;
-}) {
-  return (
-    <div
-      className={
-        emphasized
-          ? "flex flex-col rounded-card border border-foreground/20 bg-card p-6 shadow-[0_1px_0_rgba(0,0,0,0.04)]"
-          : "flex flex-col rounded-card border border-border bg-card p-6"
-      }
-    >
-      <h3 className="text-[15px] font-medium">{name}</h3>
-      <p className="mt-4 flex items-baseline gap-1.5">
-        <span className="text-[32px] font-semibold tracking-tight">{price}</span>
-        <span className="text-[13px] text-subtle-foreground">{period}</span>
-      </p>
-      <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">{blurb}</p>
-      <ul className="mt-6 flex-1 space-y-2.5 text-[13px] text-muted-foreground">
-        {features.map((feature) => (
-          <li key={feature} className="flex gap-2">
-            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" aria-hidden />
-            <span>{feature}</span>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-8">{cta}</div>
     </div>
   );
 }

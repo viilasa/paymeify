@@ -101,8 +101,7 @@ export default function TermsPage() {
         accept the new terms.
       </p>
       <p>
-        Paymeify may offer Free and Pro plans. Current prices are on
-        www.paymeify.com. We do not take a cut of client payments;
+        Paymeify is currently free to use. We do not take a cut of client payments;
         gateway fees stay with your bank, Razorpay, or Stripe.
       </p>
 
@@ -118,8 +117,7 @@ export default function TermsPage() {
         To the fullest extent allowed by law, Paymeify is not liable for lost
         profits, lost payments, chargebacks, or indirect damages. Our total
         liability for a claim relating to the Service is limited to the amount
-        you paid us for the Service in the three months before the claim (which
-        is zero on the Free plan).
+        you paid us for the Service in the three months before the claim.
       </p>
 
       <h2>10. Governing law</h2>
