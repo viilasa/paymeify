@@ -23,14 +23,8 @@ export const metadata: Metadata = {
   description,
   applicationName: "Paymeify",
   keywords: [...site.keywords],
-  alternates: {
-    canonical: "/",
-    languages: {
-      "en-IN": "/",
-      en: "/",
-    },
-  },
-  robots: { index: true, follow: true },
+  // No site-wide canonical or robots: each page sets its own, so child pages
+  // don't inherit "/" as their canonical and 404s don't get two robots tags.
   verification: {
     google: site.googleSiteVerification,
   },

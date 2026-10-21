@@ -52,9 +52,10 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   if (!trimmed) return null;
   const hasPlus = trimmed.startsWith("+");
   const digits = trimmed.replace(/\D/g, "");
+  // An explicit + means the country code is already there (e.g. +65 9123 4567).
+  if (hasPlus) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
   if (digits.length === 10 && /^[6-9]/.test(digits)) return `+91${digits}`;
   if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
-  if (hasPlus && digits.length >= 8 && digits.length <= 15) return `+${digits}`;
   if (digits.length >= 11 && digits.length <= 15) return `+${digits}`;
   return null;
 }

@@ -5,7 +5,10 @@ import { ResetPasswordForm } from "@/app/(auth)/reset-password/reset-password-fo
 import { AuthShell } from "@/components/auth/auth-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Set a new password" };
+export const metadata: Metadata = {
+  title: "Set a new password",
+  robots: { index: false, follow: false },
+};
 
 export default async function ResetPasswordPage() {
   const supabase = await createSupabaseServerClient();

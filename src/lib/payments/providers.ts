@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import DodoPayments from "dodopayments";
+import type { Currency as DodoCurrency } from "dodopayments/resources/misc";
 import Razorpay from "razorpay";
 import Stripe from "stripe";
 
@@ -7,6 +9,7 @@ import { toMinorUnits } from "@/lib/format";
 import type { PaymentProvider } from "@/lib/supabase/types";
 
 export interface GatewayCredentials {
+  /** Dodo has no key id; it stores the detected mode ("live" | "test") here. */
   keyId: string;
   secret: string;
   webhookSecret: string;
@@ -28,11 +31,23 @@ export interface CreatedCheckout {
   id: string;
   url: string;
   provider: PaymentProvider;
+  /** Dodo only: the one-off product behind the session. */
+  productId?: string;
 }
 
-export function providerForCurrency(currency: string): PaymentProvider {
-  return currency === "INR" ? "razorpay" : "stripe";
+/**
+ * Gateways that can take a project's currency, in order of preference.
+ * Dodo Payments is the fallback for every currency.
+ */
+export function providerCandidates(currency: string): PaymentProvider[] {
+  return currency === "INR" ? ["razorpay", "dodo"] : ["stripe", "dodo"];
 }
+
+export const PROVIDER_LABEL: Record<PaymentProvider, string> = {
+  razorpay: "Razorpay",
+  stripe: "Stripe",
+  dodo: "Dodo Payments",
+};
 
 export async function createCheckout(
   provider: PaymentProvider,
@@ -40,6 +55,7 @@ export async function createCheckout(
   input: CreateCheckoutInput,
 ): Promise<CreatedCheckout> {
   if (provider === "razorpay") return createRazorpayLink(credentials, input);
+  if (provider === "dodo") return createDodoCheckout(credentials, input);
   return createStripeCheckout(credentials, input);
 }
 
@@ -47,6 +63,7 @@ export async function cancelCheckout(
   provider: PaymentProvider,
   credentials: GatewayCredentials,
   checkoutId: string,
+  options?: { productId?: string },
 ): Promise<void> {
   if (provider === "razorpay") {
     try {
@@ -54,6 +71,14 @@ export async function cancelCheckout(
     } catch (error) {
       console.warn("razorpay.paymentLink.cancel failed", error);
     }
+    return;
+  }
+
+  // Dodo has no endpoint to void a checkout session, but archiving the
+  // session's one-off product stops it selling. When the product id isn't
+  // known, a late payment is still recorded and flagged by the settle step.
+  if (provider === "dodo") {
+    if (options?.productId) await archiveDodoProducts(credentials, [options.productId]);
     return;
   }
 
@@ -104,6 +129,8 @@ export async function fetchCheckoutStatus(
     }
   }
 
+  if (provider === "dodo") return fetchDodoCheckoutStatus(credentials, checkoutId);
+
   try {
     const session = await stripeClient(credentials.secret).checkout.sessions.retrieve(
       checkoutId,
@@ -136,6 +163,10 @@ export async function pingProvider(
     await razorpayClient(credentials).payments.all({ count: 1 });
     return;
   }
+  if (provider === "dodo") {
+    await dodoClient(credentials).products.list({ page_size: 1 });
+    return;
+  }
   await stripeClient(credentials.secret).balance.retrieve();
 }
 
@@ -153,6 +184,9 @@ export function verifyWebhookSignature(
     return crypto.timingSafeEqual(received, computed);
   }
 
+  // Dodo uses Standard Webhooks headers; verify with dodoClient().webhooks.unwrap.
+  if (provider === "dodo") return false;
+
   try {
     stripeClient("sk_unused").webhooks.constructEvent(rawBody, signature, webhookSecret);
     return true;
@@ -167,6 +201,30 @@ function razorpayClient(credentials: GatewayCredentials) {
 
 function stripeClient(secret: string) {
   return new Stripe(secret);
+}
+
+export function dodoClient(credentials: Pick<GatewayCredentials, "keyId" | "secret">) {
+  return new DodoPayments({
+    bearerToken: credentials.secret,
+    environment: credentials.keyId === "test" ? "test_mode" : "live_mode",
+    webhookKey: null,
+  });
+}
+
+/**
+ * Dodo keys do not say which mode they belong to, so try live first and fall
+ * back to test. Throws when neither accepts the key.
+ */
+export async function detectDodoMode(apiKey: string): Promise<"live" | "test"> {
+  for (const mode of ["live", "test"] as const) {
+    try {
+      await pingProvider("dodo", { keyId: mode, secret: apiKey, webhookSecret: "" });
+      return mode;
+    } catch (error) {
+      if (!(error instanceof DodoPayments.AuthenticationError)) throw error;
+    }
+  }
+  throw new AppError("Dodo Payments rejected that API key.");
 }
 
 async function createRazorpayLink(
@@ -253,6 +311,115 @@ async function createStripeCheckout(
     console.error("stripe.checkout.sessions.create failed", error);
     throw new AppError("Could not reach Stripe. Check your secret key and try again.");
   }
+}
+
+async function createDodoCheckout(
+  credentials: GatewayCredentials,
+  input: CreateCheckoutInput,
+): Promise<CreatedCheckout> {
+  const amount = toMinorUnits(input.amount);
+  if (!Number.isInteger(amount) || amount < 100) {
+    throw new AppError("Dodo Payments needs an amount of at least 1.00 in the project currency.");
+  }
+
+  const client = dodoClient(credentials);
+  try {
+    // Checkout sessions only sell products, so each milestone gets its own
+    // one-time product at the exact amount. Tax-inclusive keeps the total the
+    // client pays equal to the milestone amount the settle step checks.
+    const product = await client.products.create({
+      name: input.description.slice(0, 120),
+      price: {
+        type: "one_time_price",
+        currency: input.currency as DodoCurrency,
+        price: amount,
+        tax_inclusive: true,
+        purchasing_power_parity: false,
+      },
+      tax_category: "digital_products",
+      metadata: {
+        project_id: input.projectId,
+        milestone_id: input.milestoneId,
+      },
+    });
+
+    const session = await client.checkoutSessions.create({
+      product_cart: [{ product_id: product.product_id, quantity: 1 }],
+      ...(input.customerEmail
+        ? { customer: { email: input.customerEmail, name: input.customerName.slice(0, 100) } }
+        : {}),
+      return_url: input.callbackUrl,
+      cancel_url: input.cancelUrl,
+      metadata: {
+        project_id: input.projectId,
+        milestone_id: input.milestoneId,
+      },
+    });
+
+    if (!session.session_id || !session.checkout_url) {
+      throw new AppError("Dodo Payments did not return a usable checkout session.");
+    }
+
+    return {
+      id: session.session_id,
+      url: session.checkout_url,
+      provider: "dodo",
+      productId: product.product_id,
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    console.error("dodo.checkoutSessions.create failed", error);
+    throw new AppError(
+      readDodoError(error) ?? "Could not reach Dodo Payments. Check your API key and try again.",
+    );
+  }
+}
+
+/** Archives Dodo's one-off milestone products once they've done their job. */
+export async function archiveDodoProducts(
+  credentials: GatewayCredentials,
+  productIds: string[],
+): Promise<void> {
+  const client = dodoClient(credentials);
+  await Promise.all(
+    productIds.map((id) =>
+      client.products.archive(id).catch((error: unknown) => {
+        console.warn("dodo.products.archive failed", id, error);
+      }),
+    ),
+  );
+}
+
+async function fetchDodoCheckoutStatus(
+  credentials: GatewayCredentials,
+  checkoutId: string,
+): Promise<CheckoutLookup> {
+  try {
+    const client = dodoClient(credentials);
+    const session = await client.checkoutSessions.retrieve(checkoutId);
+    if (session.payment_status === "succeeded" && session.payment_id) {
+      const payment = await client.payments.retrieve(session.payment_id);
+      return {
+        state: "paid",
+        paymentId: payment.payment_id,
+        amountMinor: payment.total_amount,
+        currency: payment.currency,
+      };
+    }
+    if (session.payment_status === "cancelled") return { state: "closed", reason: "cancelled" };
+    // No payment yet, processing, or failed (the client can retry) — still open.
+    return { state: "open" };
+  } catch (error) {
+    console.warn("dodo.checkoutSessions.retrieve failed", error);
+    return { state: "unknown" };
+  }
+}
+
+function readDodoError(error: unknown): string | null {
+  if (!(error instanceof DodoPayments.APIError)) return null;
+  const body = error.error as { message?: unknown } | undefined;
+  const value = body?.message;
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
 function readRazorpayError(error: unknown): string | null {

@@ -1,12 +1,13 @@
 import { AppError } from "@/lib/action-result";
 import { appUrl } from "@/lib/env";
-import { markInvoicePaidForMilestone } from "@/lib/invoices";
-import { loadOwnerCredentials } from "@/lib/payments/connections";
+import { markInvoicePaidForMilestone, reopenInvoiceForMilestone } from "@/lib/invoices";
 import {
-  cancelCheckout,
-  createCheckout,
-  providerForCurrency,
-} from "@/lib/payments/providers";
+  gatewayForCheckout,
+  loadOwnerCredentials,
+  resolveOwnerGateway,
+} from "@/lib/payments/connections";
+import { cancelCheckout, createCheckout } from "@/lib/payments/providers";
+import { findCurrentMilestone } from "@/lib/progress";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Milestone, Project } from "@/lib/supabase/types";
@@ -19,7 +20,7 @@ export interface PaymentLinkResult {
 }
 
 /**
- * Returns a payable Razorpay link for a milestone, creating one only if the
+ * Returns a payable gateway checkout for a milestone, creating one only if the
  * milestone does not already have a live link.
  *
  * Runs with the service role: milestone payment columns are gateway-owned and
@@ -46,8 +47,16 @@ export async function ensureMilestonePaymentLink(
     throw new AppError("This milestone has already been paid.");
   }
 
+  // A failed checkout (e.g. an amount mismatch) may already have taken money,
+  // so never hand it out again: release it and issue a fresh one.
+  if (milestone.payment_link_id && milestone.payment_status === "failed") {
+    await releaseMilestonePaymentLink(milestone.id);
+    milestone.payment_link_id = null;
+    milestone.payment_link_url = null;
+  }
+
   if (milestone.payment_link_id && milestone.payment_link_url) {
-    if (milestone.payment_status === "unpaid" || milestone.payment_status === "failed") {
+    if (milestone.payment_status === "unpaid") {
       await admin
         .from("milestones")
         .update({ payment_status: "pending" })
@@ -69,15 +78,15 @@ export async function ensureMilestonePaymentLink(
 
   if (!project) throw new AppError("That project no longer exists.");
 
-  const provider = providerForCurrency(project.currency);
-  const credentials = await loadOwnerCredentials(project.user_id, provider);
-  if (!credentials) {
+  const gateway = await resolveOwnerGateway(project.user_id, project.currency);
+  if (!gateway) {
     throw new AppError(
-      provider === "razorpay"
-        ? "Connect Razorpay in Settings to take automatic payments."
-        : "Connect Stripe in Settings to take automatic payments.",
+      project.currency === "INR"
+        ? "Connect Razorpay or Dodo Payments in Settings to take automatic payments."
+        : "Connect Stripe or Dodo Payments in Settings to take automatic payments.",
     );
   }
+  const { provider, credentials } = gateway;
 
   const created = await createCheckout(provider, credentials, {
     amount: Number(milestone.amount),
@@ -106,7 +115,7 @@ export async function ensureMilestonePaymentLink(
 
   if (!claimed) {
     // Someone else won the race. Discard ours and use theirs.
-    await cancelCheckout(provider, credentials, created.id);
+    await cancelCheckout(provider, credentials, created.id, { productId: created.productId });
     const { data: current } = await admin
       .from("milestones")
       .select("payment_link_id, payment_link_url")
@@ -119,7 +128,7 @@ export async function ensureMilestonePaymentLink(
     return { url: current.payment_link_url, id: current.payment_link_id, reused: true };
   }
 
-  await admin.from("payments").insert({
+  const { error: ledgerError } = await admin.from("payments").insert({
     project_id: project.id,
     milestone_id: milestone.id,
     amount: Number(milestone.amount),
@@ -128,6 +137,11 @@ export async function ensureMilestonePaymentLink(
     gateway_payment_link_id: created.id,
     status: "created",
   });
+  // The checkout still works without this row (gatewayForCheckout falls back
+  // to the id's shape), so log loudly rather than failing the client.
+  if (ledgerError) {
+    console.error("payments ledger insert failed for checkout", created.id, ledgerError);
+  }
 
   return { url: created.url, id: created.id, reused: false };
 }
@@ -153,8 +167,8 @@ export async function releaseMilestonePaymentLink(milestoneId: string): Promise<
     .eq("id", milestone.project_id)
     .maybeSingle();
 
-  if (project) {
-    const provider = providerForCurrency(project.currency);
+  const provider = await gatewayForCheckout(milestone.payment_link_id);
+  if (project && provider) {
     const credentials = await loadOwnerCredentials(project.user_id, provider);
     if (credentials) {
       await cancelCheckout(provider, credentials, milestone.payment_link_id);
@@ -177,7 +191,7 @@ export async function releaseMilestonePaymentLink(milestoneId: string): Promise<
  * Marks a milestone paid because the freelancer confirmed the money arrived.
  *
  * Settlement paths that may set payment_status = paid:
- * 1. Verified Razorpay/Stripe webhook (settleGatewayPaid)
+ * 1. Verified Razorpay/Stripe/Dodo webhook (settleGatewayPaid)
  * 2. Reconcile cron after provider fetch (settleGatewayPaid)
  * 3. This manual confirm (UPI / off-gateway)
  *
@@ -202,6 +216,12 @@ export async function settleMilestoneManually(
     throw new AppError("This milestone is already marked paid.");
   }
 
+  // The freelancer is the authority on money that arrived off-gateway, so an
+  // open checkout is released (and voided at the gateway) rather than blocking.
+  if (milestone.payment_link_id) {
+    await releaseMilestonePaymentLink(milestone.id);
+  }
+
   const { data: project } = await supabase
     .from("projects")
     .select("currency")
@@ -210,9 +230,20 @@ export async function settleMilestoneManually(
 
   const paidAt = new Date().toISOString();
 
+  // Milestone first: the guard trigger may refuse it, and nothing must be
+  // written to the ledger if it does.
+  const { error: updateError } = await supabase
+    .from("milestones")
+    .update({ payment_status: "paid", paid_at: paidAt, status: "completed" })
+    .eq("id", milestone.id);
+
+  if (updateError) {
+    throw new AppError(updateError.message || "Could not mark the milestone paid.");
+  }
+
   // Promote the client's own report if there is one, so the ledger keeps the
   // reference number they gave us instead of growing a second row.
-  const { data: claimed } = await supabase
+  const { data: claimed, error: claimError } = await supabase
     .from("payments")
     .update({ status: "captured", paid_at: paidAt })
     .eq("milestone_id", milestone.id)
@@ -220,8 +251,10 @@ export async function settleMilestoneManually(
     .eq("status", "pending")
     .select("id");
 
+  if (claimError) console.error("Could not promote UPI report", claimError.message);
+
   if (!claimed?.length) {
-    await supabase.from("payments").insert({
+    const { error: insertError } = await supabase.from("payments").insert({
       project_id: projectId,
       milestone_id: milestone.id,
       amount: Number(milestone.amount),
@@ -230,17 +263,7 @@ export async function settleMilestoneManually(
       status: "captured",
       paid_at: paidAt,
     });
-  }
-
-  const { error: updateError } = await supabase
-    .from("milestones")
-    .update({ payment_status: "paid", paid_at: paidAt, status: "completed" })
-    .eq("id", milestone.id);
-
-  // The guard trigger rejects this for anything Razorpay has a claim on, and
-  // surfaces its own reason.
-  if (updateError) {
-    throw new AppError(updateError.message || "Could not mark the milestone paid.");
+    if (insertError) console.error("Could not record manual payment", insertError.message);
   }
 
   await markInvoicePaidForMilestone(supabase, milestone.id, paidAt);
@@ -272,7 +295,7 @@ export async function reopenMilestone(
     .from("payments")
     .select("id")
     .eq("milestone_id", milestone.id)
-    .in("gateway", ["razorpay", "stripe"])
+    .in("gateway", ["razorpay", "stripe", "dodo"])
     .eq("status", "captured")
     .limit(1);
 
@@ -295,6 +318,24 @@ export async function reopenMilestone(
     .eq("id", milestone.id);
 
   if (error) throw new AppError(error.message || "Could not reopen the milestone.");
+
+  await reopenInvoiceForMilestone(supabase, milestone.id);
+}
+
+/**
+ * Before a milestone disappears: void its open checkout so a late payment
+ * can't land on nothing, and drop any UPI report waiting on it.
+ */
+export async function releaseMilestoneForDelete(milestone: Pick<Milestone, "id" | "payment_link_id">) {
+  if (milestone.payment_link_id) await releaseMilestonePaymentLink(milestone.id);
+
+  const supabase = await createSupabaseServerClient();
+  await supabase
+    .from("payments")
+    .update({ status: "cancelled" })
+    .eq("milestone_id", milestone.id)
+    .eq("gateway", "upi")
+    .eq("status", "pending");
 }
 
 /**
@@ -302,11 +343,10 @@ export async function reopenMilestone(
  * Paying out of order is rejected so the portal and the ledger stay in step.
  */
 export function assertPayableMilestone(
-  milestones: Pick<Milestone, "position" | "payment_status">[],
+  milestones: Pick<Milestone, "position" | "payment_status" | "amount">[],
   position: number,
 ): void {
-  const sorted = [...milestones].sort((a, b) => a.position - b.position);
-  const next = sorted.find((m) => m.payment_status !== "paid");
+  const next = findCurrentMilestone(milestones);
 
   if (!next) throw new AppError("Every milestone on this project is already paid.");
   if (next.position !== position) {

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { emptyActionState } from "@/lib/action-result";
 import { currencySymbol } from "@/lib/format";
+import { useKeepFormValues } from "@/lib/use-keep-form-values";
 import type { Milestone } from "@/lib/supabase/types";
 
 interface MilestoneFormProps {
@@ -50,6 +51,7 @@ export function MilestoneForm({
     isEdit ? updateMilestoneAction : addMilestoneAction,
     emptyActionState,
   );
+  const { onSubmit, pending } = useKeepFormValues(formAction);
 
   const lastMessage = React.useRef<string | undefined>(undefined);
 
@@ -61,7 +63,8 @@ export function MilestoneForm({
     }
   }, [state.message, onOpenChange]);
 
-  const amountLocked = milestone?.payment_status === "paid";
+  const amountPaid = milestone?.payment_status === "paid";
+  const amountLocked = amountPaid || Boolean(milestone?.payment_link_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,7 +78,7 @@ export function MilestoneForm({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4">
           <input type="hidden" name="project_id" value={projectId} />
           {milestone ? (
             <input type="hidden" name="milestone_id" value={milestone.id} />
@@ -111,7 +114,13 @@ export function MilestoneForm({
             <Field
               label={`Amount (${currencySymbol(currency)})`}
               htmlFor="amount"
-              hint={amountLocked ? "Locked — already paid." : undefined}
+              hint={
+                amountPaid
+                  ? "Locked — already paid."
+                  : amountLocked
+                    ? "Locked — release the open checkout to change it."
+                    : undefined
+              }
               error={state.fieldErrors?.amount}
             >
               <Input
@@ -156,7 +165,7 @@ export function MilestoneForm({
             <Button variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <SubmitButton variant="primary" pendingLabel="Saving…">
+            <SubmitButton variant="primary" pendingLabel="Saving…" pending={pending}>
               {isEdit ? "Save changes" : "Add milestone"}
             </SubmitButton>
           </DialogFooter>

@@ -57,20 +57,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  const parsed = webhookBody.safeParse(safeJson(rawBody));
+  const json = safeJson(rawBody);
+  if (json === null) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+
+  // Other Razorpay events (and links Paymeify didn't create) are acknowledged
+  // so Razorpay doesn't retry them or disable the webhook.
+  const parsed = webhookBody.safeParse(json);
   if (!parsed.success || !parsed.data.payload.payment_link) {
     return NextResponse.json({ received: true });
   }
 
   const link = parsed.data.payload.payment_link.entity;
-  const projectId = await resolveProjectId(link.id, link.notes?.project_id);
-  if (!projectId) {
-    console.warn("razorpay webhook: could not resolve project for", link.id);
+  let projectId: string | null;
+  let owner: Awaited<ReturnType<typeof loadCredentialsForProject>>;
+  try {
+    projectId = await resolveProjectId(link.id, link.notes?.project_id);
+    owner = projectId ? await loadCredentialsForProject(projectId, "razorpay") : null;
+  } catch (error) {
+    console.error("razorpay webhook: lookup failed", error);
+    return NextResponse.json({ error: "Lookup failed" }, { status: 500 });
+  }
+  if (!projectId || !owner) {
+    // Unknown link, or the owner disconnected Razorpay: retrying can't help.
     return NextResponse.json({ received: true });
   }
 
-  const owner = await loadCredentialsForProject(projectId, "razorpay");
-  if (!owner || !verifyWebhookSignature("razorpay", owner.credentials.webhookSecret, rawBody, signature)) {
+  if (!verifyWebhookSignature("razorpay", owner.credentials.webhookSecret, rawBody, signature)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -124,6 +136,7 @@ export async function POST(request: NextRequest) {
         gateway: "razorpay",
         checkoutId: link.id,
         status: "expired",
+        projectId,
         milestoneId: link.notes?.milestone_id,
       });
     } else if (event === "payment_link.cancelled") {
@@ -131,6 +144,7 @@ export async function POST(request: NextRequest) {
         gateway: "razorpay",
         checkoutId: link.id,
         status: "cancelled",
+        projectId,
         milestoneId: link.notes?.milestone_id,
       });
     }

@@ -10,13 +10,17 @@ import { resendApiKey } from "@/lib/env";
 import {
   ensureInvoiceForMilestone,
   invoicePublicUrl,
+  voidOpenInvoiceForMilestone,
   markInvoiceSent,
 } from "@/lib/invoices";
 import { emailPaidInvoiceReceipt } from "@/lib/invoice-mail";
 import { notifyClient, recentlyReminded } from "@/lib/notify";
 import { composePhone, DEFAULT_DIAL_CODE, normalizePhone } from "@/lib/phone";
+import { currentOrder, milestoneOrderProblem } from "@/lib/milestone-order";
+import { needsPayment } from "@/lib/progress";
 import {
   ensureMilestonePaymentLink,
+  releaseMilestoneForDelete,
   releaseMilestonePaymentLink,
   reopenMilestone,
   settleMilestoneManually,
@@ -112,7 +116,7 @@ async function sendInvoiceForMilestone(input: {
     return { emailed: false, number: "", invoiceUrl: "", error: message };
   }
 
-  const invoiceUrl = invoicePublicUrl(input.project, input.milestone.position);
+  const invoiceUrl = invoicePublicUrl(input.project, invoice.number);
 
   if (!input.project.client_email?.trim()) {
     return {
@@ -161,8 +165,17 @@ async function notifyMilestoneCompletedOrInvoice(input: {
   profile: { name: string; business_name: string | null };
 }): Promise<{ message?: string; error?: string }> {
   // Due invoices are sent only via "Send invoice". Completing a milestone
-  // just notifies the client that work is ready.
+  // just notifies the client that work is ready — once, even if the status is
+  // toggled back and forth.
   const supabase = await createSupabaseServerClient();
+  const { data: alreadySent } = await supabase
+    .from("client_notifications")
+    .select("id")
+    .eq("milestone_id", input.milestone.id)
+    .eq("kind", "milestone_completed")
+    .limit(1);
+  if (alreadySent?.length) return { message: "Milestone completed." };
+
   await notifyClient({
     db: supabase,
     project: input.project,
@@ -283,6 +296,7 @@ export async function updateProjectAction(
     const parsed = projectSettingsSchema.safeParse({
       ...readProjectFields(formData),
       status: formData.get("status"),
+      reminders_enabled: formData.get("reminders_enabled") === "on",
     });
 
     if (!parsed.success) {
@@ -290,6 +304,24 @@ export async function updateProjectAction(
     }
 
     const supabase = await createSupabaseServerClient();
+
+    if (parsed.data.currency !== project.currency) {
+      const [{ data: locked }, { data: payments }] = await Promise.all([
+        supabase
+          .from("milestones")
+          .select("id")
+          .eq("project_id", project.id)
+          .or("payment_link_id.not.is.null,payment_status.in.(paid,pending)")
+          .limit(1),
+        supabase.from("payments").select("id").eq("project_id", project.id).limit(1),
+      ]);
+      if (locked?.length || payments?.length) {
+        return failure("Currency is locked once a payment has been started or recorded.", {
+          currency: "Locked: this project already has payments.",
+        });
+      }
+    }
+
     const { error } = await supabase
       .from("projects")
       .update(parsed.data)
@@ -312,6 +344,14 @@ export async function deleteProjectAction(
     const project = await requireOwnedProject(formData.get("project_id"));
 
     const supabase = await createSupabaseServerClient();
+    const { data: milestones } = await supabase
+      .from("milestones")
+      .select("id, payment_link_id, payment_status")
+      .eq("project_id", project.id);
+    for (const milestone of milestones ?? []) {
+      if (milestone.payment_status !== "paid") await releaseMilestoneForDelete(milestone);
+    }
+
     const { error } = await supabase.from("projects").delete().eq("id", project.id);
     if (error) throw new AppError("Could not delete the project.");
 
@@ -373,22 +413,30 @@ export async function addMilestoneAction(
     }
 
     const supabase = await createSupabaseServerClient();
-    const { data: last } = await supabase
-      .from("milestones")
-      .select("position")
-      .eq("project_id", project.id)
-      .order("position", { ascending: false })
-      .limit(1)
-      .maybeSingle();
 
-    const { error } = await supabase.from("milestones").insert({
-      ...parsed.data,
-      project_id: project.id,
-      position: (last?.position ?? 0) + 1,
-      status: "pending",
-    });
+    // Positions are unique per project; if two adds race for the same number,
+    // the loser takes the next one.
+    let added = false;
+    for (let attempt = 0; attempt < 3 && !added; attempt += 1) {
+      const { data: last } = await supabase
+        .from("milestones")
+        .select("position")
+        .eq("project_id", project.id)
+        .order("position", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (error) throw new AppError("Could not add the milestone.");
+      const { error } = await supabase.from("milestones").insert({
+        ...parsed.data,
+        project_id: project.id,
+        position: (last?.position ?? 0) + 1,
+        status: "pending",
+      });
+
+      if (!error) added = true;
+      else if (error.code !== "23505") throw new AppError("Could not add the milestone.");
+    }
+    if (!added) throw new AppError("Could not add the milestone. Try again.");
 
     revalidateProject(project.id, project.public_token);
     return success("Milestone added.");
@@ -421,8 +469,15 @@ export async function updateMilestoneAction(
     const statusResult = milestoneStatusSchema.safeParse(formData.get("status"));
     if (!statusResult.success) return failure("Choose a valid status.");
 
-    if (milestone.payment_status === "paid" && parsed.data.amount !== Number(milestone.amount)) {
-      return failure("This milestone is paid, so its amount is locked.");
+    if (parsed.data.amount !== Number(milestone.amount)) {
+      if (milestone.payment_status === "paid") {
+        return failure("This milestone is paid, so its amount is locked.");
+      }
+      if (milestone.payment_link_id) {
+        return failure(
+          "A checkout is open for this milestone. Release it before changing the amount.",
+        );
+      }
     }
 
     const supabase = await createSupabaseServerClient();
@@ -432,6 +487,14 @@ export async function updateMilestoneAction(
       .eq("id", milestone.id);
 
     if (error) throw new AppError("Could not save the milestone.");
+
+    const billedDetailsChanged =
+      parsed.data.amount !== Number(milestone.amount) ||
+      parsed.data.title !== milestone.title ||
+      (parsed.data.due_date || null) !== (milestone.due_date || null);
+    if (billedDetailsChanged && milestone.payment_status !== "paid") {
+      await voidOpenInvoiceForMilestone(supabase, milestone.id);
+    }
 
     if (statusResult.data === "completed" && milestone.status !== "completed") {
       const { profile } = await requireSession();
@@ -507,23 +570,21 @@ export async function deleteMilestoneAction(
     }
 
     const supabase = await createSupabaseServerClient();
+    const siblings = await loadOrderable(supabase, project.id);
+    const remainingOrder = currentOrder(siblings).filter((id) => id !== milestone.id);
+    const problem = milestoneOrderProblem(
+      siblings.filter((m) => m.id !== milestone.id),
+      remainingOrder,
+    );
+    if (problem) return failure(`Deleting this would renumber the rest. ${problem}`);
+
+    await releaseMilestoneForDelete(milestone);
+
     const { error } = await supabase.from("milestones").delete().eq("id", milestone.id);
     if (error) throw new AppError("Could not delete the milestone.");
 
-    // Close the gap left in the ordering.
-    const { data: remaining } = await supabase
-      .from("milestones")
-      .select("id, position")
-      .eq("project_id", project.id)
-      .order("position", { ascending: true });
-
-    await Promise.all(
-      (remaining ?? []).map((row, index) =>
-        row.position === index + 1
-          ? Promise.resolve()
-          : supabase.from("milestones").update({ position: index + 1 }).eq("id", row.id),
-      ),
-    );
+    // Close the gap left in the ordering, in one transaction.
+    if (remainingOrder.length) await saveOrder(supabase, project.id, remainingOrder);
 
     revalidateProject(project.id, project.public_token);
     return success("Milestone deleted.");
@@ -548,34 +609,86 @@ export async function moveMilestoneAction(
     }
 
     const supabase = await createSupabaseServerClient();
-    const query = supabase
-      .from("milestones")
-      .select("id, position")
-      .eq("project_id", project.id)
-      .order("position", { ascending: direction === "down" })
-      .limit(1);
+    const milestones = await loadOrderable(supabase, project.id);
+    const order = currentOrder(milestones);
+    const from = order.indexOf(milestone.id);
+    const to = direction === "up" ? from - 1 : from + 1;
+    if (from < 0 || to < 0 || to >= order.length) return success("Already at the end.");
 
-    // The adjacent milestone in the direction of travel.
-    const { data: neighbour } = await (direction === "up"
-      ? query.lt("position", milestone.position)
-      : query.gt("position", milestone.position)
-    ).maybeSingle();
-
-    if (!neighbour) return success("Already at the end.");
-
-    await supabase
-      .from("milestones")
-      .update({ position: neighbour.position })
-      .eq("id", milestone.id);
-    await supabase
-      .from("milestones")
-      .update({ position: milestone.position })
-      .eq("id", neighbour.id);
-
-    revalidateProject(project.id, project.public_token);
-    return success("Milestones reordered.");
+    order.splice(to, 0, ...order.splice(from, 1));
+    return applyOrder(supabase, project, milestones, order);
   } catch (error) {
     return failure(toUserMessage(error, "Could not reorder the milestones."));
+  }
+}
+
+/** Saves a whole new milestone order from drag-and-drop. */
+export async function reorderMilestonesAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const project = await requireOwnedProject(formData.get("project_id"));
+
+    let order: unknown;
+    try {
+      order = JSON.parse(String(formData.get("order") ?? ""));
+    } catch {
+      return failure("That order was not understood.");
+    }
+    if (!Array.isArray(order) || !order.every((id) => typeof id === "string" && isUuid(id))) {
+      return failure("That order was not understood.");
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const milestones = await loadOrderable(supabase, project.id);
+    return applyOrder(supabase, project, milestones, order as string[]);
+  } catch (error) {
+    return failure(toUserMessage(error, "Could not reorder the milestones."));
+  }
+}
+
+type ServerDb = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+async function loadOrderable(supabase: ServerDb, projectId: string) {
+  const { data, error } = await supabase
+    .from("milestones")
+    .select("id, title, position, payment_status, payment_link_id")
+    .eq("project_id", projectId);
+  if (error) throw new AppError("Could not load the milestones.");
+  return data ?? [];
+}
+
+async function applyOrder(
+  supabase: ServerDb,
+  project: Pick<Project, "id" | "public_token">,
+  milestones: Awaited<ReturnType<typeof loadOrderable>>,
+  order: string[],
+): Promise<ActionState> {
+  const problem = milestoneOrderProblem(milestones, order);
+  if (problem) return failure(problem);
+
+  if (order.join() !== currentOrder(milestones).join()) {
+    await saveOrder(supabase, project.id, order);
+  }
+
+  revalidateProject(project.id, project.public_token);
+  return success("Milestones reordered.");
+}
+
+/** Writes positions 1..n in one transaction (see reorder_milestones, 0013). */
+async function saveOrder(supabase: ServerDb, projectId: string, order: string[]) {
+  const { error } = await supabase.rpc("reorder_milestones", {
+    p_project_id: projectId,
+    p_ids: order,
+  });
+  if (error) {
+    console.error("reorder_milestones failed", error.message);
+    throw new AppError(
+      error.code === "PGRST202"
+        ? "Run the 0013 milestone migration in Supabase to reorder milestones."
+        : "Could not reorder the milestones.",
+    );
   }
 }
 
@@ -759,8 +872,19 @@ export async function remindClientAction(
       .eq("project_id", project.id)
       .order("position", { ascending: true });
 
-    const due = (milestones ?? []).find((row) => row.payment_status !== "paid" && Number(row.amount) > 0);
+    const due = (milestones ?? []).find(needsPayment);
     if (!due) return failure("Nothing is unpaid on this project.");
+    const requested = formData.get("milestone_id");
+    if (typeof requested === "string" && requested && requested !== due.id) {
+      return failure(
+        `Clients pay milestones in order, so remind them about ${due.title} first.`,
+      );
+    }
+    if (due.payment_status === "pending") {
+      return failure(
+        `${due.title} already has a payment in progress or reported. Confirm it before reminding again.`,
+      );
+    }
 
     const forced = formData.get("force") === "1";
     const skipEmail =

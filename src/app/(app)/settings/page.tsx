@@ -16,6 +16,7 @@ export default async function SettingsPage() {
   ]);
   const razorpay = connections.find((c) => c.provider === "razorpay") ?? null;
   const stripe = connections.find((c) => c.provider === "stripe") ?? null;
+  const dodo = connections.find((c) => c.provider === "dodo") ?? null;
   const origin = appUrl();
 
   return (
@@ -30,13 +31,15 @@ export default async function SettingsPage() {
       <section className="space-y-3">
         <h2 className="text-[13px] font-medium">Integrations</h2>
         <p className="max-w-xl text-[12px] leading-relaxed text-muted-foreground">
-          UPI stays manual. Razorpay and Stripe mark a milestone paid when checkout
-          finishes.
+          UPI stays manual. Razorpay, Stripe, and Dodo Payments mark a milestone
+          paid when checkout finishes. Dodo covers any currency without its own
+          gateway connected.
         </p>
         <IntegrationsPanel
           profile={profile}
           razorpay={razorpay}
           stripe={stripe}
+          dodo={dodo}
           webhookOrigin={origin}
         />
       </section>

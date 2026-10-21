@@ -1,11 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isCronAuthorized } from "@/lib/notify";
-import { loadOwnerCredentials } from "@/lib/payments/connections";
-import {
-  fetchCheckoutStatus,
-  providerForCurrency,
-} from "@/lib/payments/providers";
+import { gatewayForCheckout, loadOwnerCredentials } from "@/lib/payments/connections";
+import { fetchCheckoutStatus } from "@/lib/payments/providers";
 import {
   settleGatewayClosed,
   settleGatewayPaid,
@@ -22,7 +19,7 @@ const MIN_AGE_MS = 5 * 60 * 1000;
 const MAX_PER_RUN = 40;
 
 /**
- * Asks Razorpay/Stripe what happened for unpaid milestones that still have an
+ * Asks Razorpay/Stripe/Dodo what happened for unpaid milestones that still have an
  * open checkout. Settles paid ones, clears expired/cancelled ones.
  */
 export async function GET(request: NextRequest) {
@@ -71,7 +68,11 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const provider = providerForCurrency(project.currency);
+      const provider = await gatewayForCheckout(checkoutId);
+      if (!provider) {
+        skipped += 1;
+        continue;
+      }
       const credentials = await loadOwnerCredentials(project.user_id, provider);
       if (!credentials) {
         skipped += 1;

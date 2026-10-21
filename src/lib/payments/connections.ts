@@ -1,8 +1,9 @@
 import { AppError } from "@/lib/action-result";
 import { decryptSecret, encryptSecret, lastFour } from "@/lib/payments/secrets";
 import {
+  detectDodoMode,
   pingProvider,
-  providerForCurrency,
+  providerCandidates,
   type GatewayCredentials,
 } from "@/lib/payments/providers";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -36,16 +37,62 @@ export async function ownerHasAutoPay(
   userId: string,
   currency: string,
 ): Promise<boolean> {
-  const provider = providerForCurrency(currency);
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("payment_connections")
     .select("id")
     .eq("user_id", userId)
-    .eq("provider", provider)
+    .in("provider", providerCandidates(currency))
     .eq("status", "connected")
-    .maybeSingle();
-  return Boolean(data);
+    .limit(1);
+  return Boolean(data?.length);
+}
+
+/**
+ * Service-role read: the gateway that should take a new checkout for this
+ * currency — the first connected one in providerCandidates order.
+ */
+export async function resolveOwnerGateway(
+  userId: string,
+  currency: string,
+): Promise<{ provider: PaymentProvider; credentials: GatewayCredentials } | null> {
+  const candidates = providerCandidates(currency);
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin
+    .from("payment_connections")
+    .select("*")
+    .eq("user_id", userId)
+    .in("provider", candidates)
+    .eq("status", "connected");
+
+  for (const provider of candidates) {
+    const row = data?.find((c) => c.provider === provider);
+    if (row) return { provider, credentials: decryptConnection(row) };
+  }
+  return null;
+}
+
+/**
+ * The gateway that issued an existing checkout. Read from the ledger rather
+ * than re-derived from currency, because the owner may have connected or
+ * disconnected a gateway since the link was made.
+ */
+export async function gatewayForCheckout(checkoutId: string): Promise<PaymentProvider | null> {
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin
+    .from("payments")
+    .select("gateway")
+    .eq("gateway_payment_link_id", checkoutId)
+    .in("gateway", ["razorpay", "stripe", "dodo"])
+    .order("created_at", { ascending: true })
+    .limit(1);
+  const gateway = data?.[0]?.gateway;
+  if (gateway === "razorpay" || gateway === "stripe" || gateway === "dodo") return gateway;
+  // Older checkouts may predate their ledger row; their ids say who made them.
+  if (checkoutId.startsWith("plink_")) return "razorpay";
+  if (checkoutId.startsWith("cs_")) return "stripe";
+  // Razorpay and Stripe ids always carry their prefix; anything else is Dodo.
+  return checkoutId ? "dodo" : null;
 }
 
 /** Service-role read: used by the public pay route and webhooks. */
@@ -105,13 +152,23 @@ export async function upsertConnection(input: {
   };
 
   try {
-    await pingProvider(input.provider, credentials);
+    if (input.provider === "dodo") {
+      credentials.keyId = await detectDodoMode(credentials.secret);
+    } else {
+      // Stripe's publishable key is optional; show the mode as the hint instead.
+      if (input.provider === "stripe" && !credentials.keyId) {
+        credentials.keyId = /^(sk|rk)_test_/.test(credentials.secret) ? "test" : "live";
+      }
+      await pingProvider(input.provider, credentials);
+    }
   } catch (error) {
     console.error("payment connection test failed", error);
     throw new AppError(
       input.provider === "razorpay"
         ? "Razorpay rejected those keys. Check Key ID and Key Secret."
-        : "Stripe rejected that secret key. Check it starts with sk_ and try again.",
+        : input.provider === "dodo"
+          ? "Dodo Payments rejected that API key. Copy it again from Developer → API Keys."
+          : "Stripe rejected that secret key. Check it starts with sk_ and try again.",
     );
   }
 

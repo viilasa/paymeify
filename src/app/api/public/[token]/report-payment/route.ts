@@ -50,9 +50,10 @@ export async function POST(
 
     const body = paymentReportSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) {
-      return badRequest(
-        body.error.issues[0]?.message ?? "That request was not understood.",
-      );
+      // Only the reference is something the client typed; anything else is a
+      // malformed request, so don't echo validator internals back.
+      const referenceIssue = body.error.issues.find((issue) => issue.path[0] === "reference");
+      return badRequest(referenceIssue?.message ?? "That request was not understood.");
     }
 
     const supabase = createSupabaseAnonClient();
@@ -70,15 +71,17 @@ export async function POST(
       );
     }
 
-    const result = data as { ok?: boolean; error?: string } | null;
+    const result = data as { ok?: boolean; error?: string; duplicate?: boolean } | null;
     if (!result?.ok) {
       return badRequest(result?.error ?? "Could not record that. Try again.");
     }
 
-    // Best-effort ping so the freelancer can confirm UPI quickly.
-    void emailFreelancerUpiReport(token, body.data.position).catch((err) => {
-      console.error("freelancer UPI report email failed", err);
-    });
+    // Best-effort ping so the freelancer can confirm UPI quickly — once per report.
+    if (!result.duplicate) {
+      void emailFreelancerUpiReport(token, body.data.position).catch((err) => {
+        console.error("freelancer UPI report email failed", err);
+      });
+    }
 
     revalidatePath(`/p/${token}`);
     revalidatePath("/dashboard", "layout");

@@ -20,6 +20,12 @@ export default async function ProjectSettingsPage({
   const detail = await getProjectDetail(id);
   if (!detail) notFound();
 
+  const currencyLocked =
+    detail.payments.length > 0 ||
+    detail.milestones.some(
+      (m) => m.payment_link_id || m.payment_status === "paid" || m.payment_status === "pending",
+    );
+
   return (
     <div className="space-y-8">
       <Link
@@ -32,7 +38,7 @@ export default async function ProjectSettingsPage({
 
       <PageHeader title="Project settings" description={detail.project.name} />
 
-      <ProjectSettingsForm project={detail.project} />
+      <ProjectSettingsForm project={detail.project} currencyLocked={currencyLocked} />
     </div>
   );
 }

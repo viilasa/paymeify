@@ -4,6 +4,7 @@ import { fromMinorUnits, toMinorUnits } from "@/lib/format";
 import { emailPaidInvoiceReceipt } from "@/lib/invoice-mail";
 import { markInvoicePaidForMilestone } from "@/lib/invoices";
 import { notifyFreelancerOfPayment } from "@/lib/notify";
+import { needsPayment } from "@/lib/progress";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   Milestone,
@@ -22,7 +23,8 @@ export async function settleGatewayPaid(input: {
   gateway: PaymentProvider;
   checkoutId: string;
   paymentId: string | null;
-  projectId?: string;
+  /** Project whose credentials verified the event. Lookups never leave it. */
+  projectId: string;
   milestoneId?: string;
   amountMinor?: number;
   currency?: string;
@@ -34,10 +36,6 @@ export async function settleGatewayPaid(input: {
     return "skipped";
   }
 
-  if (milestone.payment_status === "paid") {
-    return "settled";
-  }
-
   if (input.amountMinor == null || !(input.amountMinor > 0)) {
     console.error(
       `${input.gateway} settle refused: missing provider amount for ${input.checkoutId}`,
@@ -45,13 +43,62 @@ export async function settleGatewayPaid(input: {
     return "skipped";
   }
 
+  const { data: project } = await admin
+    .from("projects")
+    .select("*")
+    .eq("id", milestone.project_id)
+    .maybeSingle();
+
+  const amount = fromMinorUnits(input.amountMinor);
+  const currency = (input.currency ?? project?.currency ?? "INR").toUpperCase();
+  const paidAt = new Date().toISOString();
+  // Webhook retries and the reconcile cron can both report the same payment.
+  const alreadyRecorded = await isPaymentRecorded(admin, input);
+
+  const capture = {
+    gateway: input.gateway,
+    milestone,
+    checkoutId: input.checkoutId,
+    paymentId: input.paymentId,
+    amount,
+    currency,
+    status: "captured" as const,
+    paidAt,
+  };
+
+  if (milestone.payment_status === "paid") {
+    if (alreadyRecorded) return "settled";
+    // Money arrived on a second checkout (e.g. an old link that stayed payable).
+    // Keep it in the ledger and tell the freelancer so they can refund it.
+    console.error(`${input.gateway} duplicate payment on paid milestone ${milestone.id}`, {
+      checkoutId: input.checkoutId,
+      paymentId: input.paymentId,
+    });
+    await recordPayment(admin, capture);
+    await alertFreelancer(admin, project, milestone, amount, currency, input.gateway, "duplicate");
+    return "settled";
+  }
+
   const expectedMinor = toMinorUnits(Number(milestone.amount));
-  if (Math.abs(input.amountMinor - expectedMinor) > AMOUNT_TOLERANCE_MINOR) {
+  const expectedCurrency = project?.currency?.toUpperCase();
+  const amountMismatch = Math.abs(input.amountMinor - expectedMinor) > AMOUNT_TOLERANCE_MINOR;
+  const currencyMismatch = Boolean(expectedCurrency && currency !== expectedCurrency);
+  if (amountMismatch || currencyMismatch) {
     console.error(
-      `${input.gateway} settle refused: amount mismatch for milestone ${milestone.id}`,
-      { gotMinor: input.amountMinor, expectedMinor, checkoutId: input.checkoutId },
+      `${input.gateway} settle refused: amount/currency mismatch for milestone ${milestone.id}`,
+      {
+        gotMinor: input.amountMinor,
+        expectedMinor,
+        gotCurrency: currency,
+        expectedCurrency,
+        checkoutId: input.checkoutId,
+      },
     );
-    // Record failure without granting paid. Freelancer can release checkout.
+    // Don't grant paid, but never lose track of money that actually arrived.
+    if (!alreadyRecorded) {
+      await recordPayment(admin, { ...capture, detached: true });
+      await alertFreelancer(admin, project, milestone, amount, currency, input.gateway, "mismatch");
+    }
     await admin
       .from("milestones")
       .update({ payment_status: "failed" })
@@ -60,19 +107,7 @@ export async function settleGatewayPaid(input: {
     return "skipped";
   }
 
-  const amount = fromMinorUnits(input.amountMinor);
-  const paidAt = new Date().toISOString();
-
-  await recordPayment(admin, {
-    gateway: input.gateway,
-    milestone,
-    checkoutId: input.checkoutId,
-    paymentId: input.paymentId,
-    amount,
-    currency: input.currency ?? "INR",
-    status: "captured",
-    paidAt,
-  });
+  await recordPayment(admin, capture);
 
   await admin
     .from("milestones")
@@ -80,12 +115,6 @@ export async function settleGatewayPaid(input: {
     .eq("id", milestone.id);
 
   await markInvoicePaidForMilestone(admin, milestone.id, paidAt);
-
-  const { data: project } = await admin
-    .from("projects")
-    .select("*")
-    .eq("id", milestone.project_id)
-    .maybeSingle();
 
   if (project) {
     const { data: profile } = await admin
@@ -108,7 +137,7 @@ export async function settleGatewayPaid(input: {
       clientName: project.client_name,
       milestoneTitle: milestone.title,
       amount,
-      currency: input.currency ?? project.currency ?? "INR",
+      currency,
       projectId: project.id,
       kind: "settled",
       source: input.gateway,
@@ -135,7 +164,7 @@ export async function settleGatewayClosed(input: {
   gateway: PaymentProvider;
   checkoutId: string;
   status: Extract<PaymentRecordStatus, "expired" | "cancelled">
-  projectId?: string;
+  projectId: string;
   milestoneId?: string;
 }): Promise<void> {
   const admin = createSupabaseAdminClient();
@@ -144,15 +173,19 @@ export async function settleGatewayClosed(input: {
   await admin
     .from("payments")
     .update({ status: input.status })
+    .eq("project_id", input.projectId)
     .eq("gateway_payment_link_id", input.checkoutId)
     .in("status", ["created", "pending"]);
 
   if (!milestone || milestone.payment_status === "paid") return;
+  // A late event for an old checkout must not wipe the milestone's current one.
+  if (milestone.payment_link_id !== input.checkoutId) return;
 
   await admin
     .from("milestones")
     .update({ payment_link_id: null, payment_link_url: null, payment_status: "unpaid" })
-    .eq("id", milestone.id);
+    .eq("id", milestone.id)
+    .eq("payment_link_id", input.checkoutId);
 
   await revalidateProject(admin, milestone.project_id);
 }
@@ -178,11 +211,14 @@ export async function releaseWebhookEvent(id: string): Promise<void> {
 
 async function findMilestone(
   admin: Admin,
-  input: { checkoutId: string; milestoneId?: string },
+  input: { checkoutId: string; projectId: string; milestoneId?: string },
 ): Promise<Milestone | null> {
+  // Scope to the verified project: a validly signed event from one
+  // freelancer's gateway must never settle another freelancer's milestone.
   const { data: byLink } = await admin
     .from("milestones")
     .select("*")
+    .eq("project_id", input.projectId)
     .eq("payment_link_id", input.checkoutId)
     .maybeSingle();
 
@@ -192,10 +228,59 @@ async function findMilestone(
   const { data: byNote } = await admin
     .from("milestones")
     .select("*")
+    .eq("project_id", input.projectId)
     .eq("id", input.milestoneId)
     .maybeSingle();
 
   return byNote ?? null;
+}
+
+async function isPaymentRecorded(
+  admin: Admin,
+  input: { gateway: PaymentProvider; checkoutId: string; paymentId: string | null },
+): Promise<boolean> {
+  const query = admin
+    .from("payments")
+    .select("id")
+    .eq("gateway", input.gateway)
+    .eq("status", "captured");
+
+  const { data } = await (input.paymentId
+    ? query.eq("gateway_payment_id", input.paymentId)
+    : query.eq("gateway_payment_link_id", input.checkoutId)
+  ).limit(1);
+
+  return Boolean(data?.length);
+}
+
+async function alertFreelancer(
+  admin: Admin,
+  project: Project | null,
+  milestone: Milestone,
+  amount: number,
+  currency: string,
+  gateway: PaymentProvider,
+  kind: "duplicate" | "mismatch",
+) {
+  if (!project) return;
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("name, email")
+    .eq("user_id", project.user_id)
+    .maybeSingle();
+
+  await notifyFreelancerOfPayment({
+    toEmail: profile?.email,
+    freelancerName: profile?.name ?? "there",
+    projectName: project.name,
+    clientName: project.client_name,
+    milestoneTitle: milestone.title,
+    amount,
+    currency,
+    projectId: project.id,
+    kind,
+    source: gateway,
+  });
 }
 
 async function recordPayment(
@@ -209,6 +294,8 @@ async function recordPayment(
     currency: string;
     status: PaymentRecordStatus;
     paidAt: string | null;
+    /** Keep the row on the project but off the milestone (unmatched money). */
+    detached?: boolean;
   },
 ) {
   if (input.paymentId) {
@@ -237,7 +324,7 @@ async function recordPayment(
 
   const values = {
     project_id: input.milestone.project_id,
-    milestone_id: input.milestone.id,
+    milestone_id: input.detached ? null : input.milestone.id,
     amount: input.amount,
     currency: input.currency,
     gateway: input.gateway,
@@ -259,11 +346,12 @@ async function recordPayment(
 async function refreshProjectStatus(admin: Admin, projectId: string) {
   const { data: milestones } = await admin
     .from("milestones")
-    .select("payment_status")
+    .select("payment_status, amount")
     .eq("project_id", projectId);
 
   if (!milestones?.length) return;
-  if (!milestones.every((m) => m.payment_status === "paid")) return;
+  // Zero-amount milestones never need paying.
+  if (milestones.some(needsPayment)) return;
 
   await admin
     .from("projects")

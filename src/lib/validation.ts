@@ -15,13 +15,26 @@ const optionalText = (max: number) =>
     .transform((value) => (value === "" ? null : value))
     .nullable();
 
+/** True for a real calendar date in YYYY-MM-DD (rejects 2026-13-45, 2026-02-30). */
+function isCalendarDate(value: string): boolean {
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 const optionalDate = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use the date picker")
+  .refine(isCalendarDate, "Enter a real date")
   .or(z.literal(""))
   .transform((value) => (value === "" ? null : value))
   .nullable();
+
+const dueAfterStart = {
+  check: (data: { start_date: string | null; due_date: string | null }) =>
+    !data.start_date || !data.due_date || data.due_date >= data.start_date,
+  options: { path: ["due_date"], message: "Due date can't be before the start date" },
+};
 
 export const emailSchema = z.string().trim().min(1, "Email is required").email("Enter a valid email");
 
@@ -71,10 +84,10 @@ export const paymentReportSchema = z.object({
   reference: z
     .string()
     .trim()
-    .max(64)
+    .max(64, "Keep the reference under 64 characters")
     .regex(/^[a-zA-Z0-9-]*$/, "Use only letters, numbers, and dashes")
-    .transform((value) => (value === "" ? null : value))
-    .nullable(),
+    .nullish()
+    .transform((value) => (value ? value : null)),
 });
 
 export const milestoneInputSchema = z.object({
@@ -84,7 +97,9 @@ export const milestoneInputSchema = z.object({
     .number({ message: "Enter an amount" })
     .finite("Enter a valid amount")
     .min(0, "Amount cannot be negative")
-    .max(99_999_999, "Amount is too large"),
+    .max(99_999_999, "Amount is too large")
+    // Razorpay and Dodo can't charge under 1.00 (Stripe: 0.50).
+    .refine((value) => value === 0 || value >= 1, "Use 0, or at least 1.00 — gateways can't charge less"),
   due_date: optionalDate,
 });
 
@@ -115,25 +130,37 @@ export const projectSchema = z.object({
   due_date: optionalDate,
 });
 
-export const createProjectSchema = projectSchema.extend({
-  milestones: z
-    .array(milestoneInputSchema)
-    .min(1, "Add at least one milestone")
-    .max(30, "That is a lot of milestones — keep it under 30"),
-});
+export const createProjectSchema = projectSchema
+  .extend({
+    milestones: z
+      .array(milestoneInputSchema)
+      .min(1, "Add at least one milestone")
+      .max(30, "That is a lot of milestones — keep it under 30"),
+  })
+  .refine(dueAfterStart.check, dueAfterStart.options);
 
-export const projectSettingsSchema = projectSchema.extend({
-  status: z.enum(["draft", "active", "completed", "archived"]),
-});
+export const projectSettingsSchema = projectSchema
+  .extend({
+    status: z.enum(["draft", "active", "completed", "archived"]),
+    reminders_enabled: z.boolean(),
+  })
+  .refine(dueAfterStart.check, dueAfterStart.options);
 
 export const milestoneStatusSchema = z.enum(["pending", "in_progress", "completed"]);
 
-export const paymentConnectionSchema = z.object({
-  provider: z.enum(["razorpay", "stripe"]),
-  key_id: trimmed(80).min(4, "Enter the key id"),
-  secret: z.string().trim().min(8, "Enter the secret key").max(256),
-  webhook_secret: z.string().trim().min(8, "Enter the webhook secret").max(256),
-});
+export const paymentConnectionSchema = z
+  .object({
+    provider: z.enum(["razorpay", "stripe", "dodo"]),
+    // Dodo has no key id — only an API key — so it may be blank there.
+    key_id: trimmed(80),
+    secret: z.string().trim().min(8, "Enter the secret key").max(256),
+    webhook_secret: z.string().trim().min(8, "Enter the webhook secret").max(256),
+  })
+  // Stripe authenticates with the secret key alone; only Razorpay needs a key id.
+  .refine((data) => data.provider !== "razorpay" || data.key_id.length >= 4, {
+    path: ["key_id"],
+    message: "Enter the key id",
+  });
 
 /** Collapses a ZodError into `{ fieldName: firstMessage }`. */
 export function fieldErrorsFrom(error: z.ZodError): Record<string, string> {

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { InvoicePrintButton } from "@/components/client-portal/invoice-print-button";
 import { formatDate, formatMoney } from "@/lib/format";
-import { getInvoiceByTokenAndPosition } from "@/lib/invoices";
+import { getPublicInvoice } from "@/lib/invoices";
 import { projectPortalUrl } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +15,7 @@ export async function generateMetadata({
   params: Promise<{ token: string; position: string }>;
 }): Promise<Metadata> {
   const { token, position } = await params;
-  const pos = Number(position);
-  const view = Number.isInteger(pos) ? await getInvoiceByTokenAndPosition(token, pos) : null;
+  const view = await getPublicInvoice(token, position);
   return {
     title: view ? `Invoice ${view.invoice.number}` : "Invoice",
     robots: { index: false, follow: false },
@@ -28,16 +27,16 @@ export default async function PublicInvoicePage({
 }: {
   params: Promise<{ token: string; position: string }>;
 }) {
-  const { token, position: positionRaw } = await params;
-  const position = Number(positionRaw);
-  if (!Number.isInteger(position) || position < 1) notFound();
+  // The segment is an invoice number (INV-0003) or, for older links, a position.
+  const { token, position: ref } = await params;
 
-  const view = await getInvoiceByTokenAndPosition(token, position);
+  const view = await getPublicInvoice(token, ref);
   if (!view) notFound();
 
   const { invoice, project } = view;
   const portalUrl = projectPortalUrl(project);
   const isPaid = invoice.status === "paid";
+  const isVoid = invoice.status === "void";
 
   return (
     <div className="min-h-screen bg-[#f4f4f5] px-4 py-10 text-[#111] print:bg-white print:px-0 print:py-0">
@@ -64,10 +63,14 @@ export default async function PublicInvoicePage({
             </div>
             <div
               className={`inline-flex self-start rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                isPaid ? "bg-[#e8f7ee] text-[#0f7a3a]" : "bg-[#fff4e5] text-[#9a6700]"
+                isPaid
+                  ? "bg-[#e8f7ee] text-[#0f7a3a]"
+                  : isVoid
+                    ? "bg-[#f0f0f0] text-[#666]"
+                    : "bg-[#fff4e5] text-[#9a6700]"
               }`}
             >
-              {isPaid ? "Paid" : "Due"}
+              {isPaid ? "Paid" : isVoid ? "Void · replaced" : "Due"}
             </div>
           </header>
 
@@ -127,7 +130,7 @@ export default async function PublicInvoicePage({
             </tfoot>
           </table>
 
-          {!isPaid ? (
+          {!isPaid && !isVoid ? (
             <div className="mt-8 print:hidden">
               <Link
                 href={portalUrl}

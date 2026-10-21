@@ -21,7 +21,8 @@ export type NotifyInput = {
   project: Project;
   profile: Pick<Profile, "name" | "business_name">;
   kind: NotificationKind;
-  milestone?: Pick<Milestone, "id" | "title" | "amount" | "position">;
+  milestone?: Pick<Milestone, "id" | "title" | "amount" | "position"> &
+    Partial<Pick<Milestone, "payment_status">>;
   invoice?: Pick<Invoice, "number" | "line_title" | "amount" | "currency" | "due_date" | "status">;
   /** Paid invoice / receipt email after payment is confirmed. */
   receipt?: boolean;
@@ -52,9 +53,13 @@ function copy(
 ): { subject: string; preview: string; htmlBody: string; sms: string; vars: SmsVars } {
   const from = senderName(input.profile);
   const link = projectPortalUrl(input.project);
-  const amount = input.milestone
-    ? formatMoney(Number(input.milestone.amount), input.project.currency)
-    : null;
+  // Nothing to ask for once the milestone is paid (or free).
+  const amount =
+    input.milestone &&
+    input.milestone.payment_status !== "paid" &&
+    Number(input.milestone.amount) > 0
+      ? formatMoney(Number(input.milestone.amount), input.project.currency)
+      : null;
   const vars = (extra: string): SmsVars => ({
     name: from.slice(0, 30),
     project: input.project.name.slice(0, 40),
@@ -98,7 +103,7 @@ ${amount ? `<p>Amount due: <strong>${escapeHtml(amount)}</strong></p>` : ""}
   if (input.kind === "invoice_sent" && input.invoice && input.milestone) {
     const inv = input.invoice;
     const invAmount = formatMoney(Number(inv.amount), inv.currency);
-    const invoiceLink = invoicePublicUrl(input.project, input.milestone.position);
+    const invoiceLink = invoicePublicUrl(input.project, inv.number);
     const isPaid = input.receipt || inv.status === "paid";
     if (isPaid) {
       return {
@@ -332,8 +337,8 @@ export async function notifyClient(
   const message = copy(input);
   const html = wrapHtml(message.subject, message.htmlBody);
   const primaryLink =
-    input.kind === "invoice_sent" && input.milestone
-      ? invoicePublicUrl(input.project, input.milestone.position)
+    input.kind === "invoice_sent" && input.invoice
+      ? invoicePublicUrl(input.project, input.invoice.number)
       : projectPortalUrl(input.project);
   const text = `${message.preview}\n\n${primaryLink}`;
 
@@ -379,9 +384,12 @@ export async function notifyFreelancerOfPayment(input: {
   amount: number;
   currency: string;
   projectId: string;
-  /** Gateway settle vs UPI claim awaiting confirm. */
-  kind: "settled" | "reported";
-  source?: "razorpay" | "stripe" | "upi";
+  /**
+   * Gateway settle vs UPI claim awaiting confirm. `duplicate` and `mismatch`
+   * flag gateway money that arrived but could not settle the milestone.
+   */
+  kind: "settled" | "reported" | "duplicate" | "mismatch";
+  source?: "razorpay" | "stripe" | "dodo" | "upi";
 }): Promise<{ ok: boolean; error?: string }> {
   const to = input.toEmail?.trim();
   if (!to) return { ok: false, error: "Freelancer email missing." };
@@ -393,15 +401,21 @@ export async function notifyFreelancerOfPayment(input: {
   const dashboardUrl = `${appUrl()}/projects/${input.projectId}`;
   const name = input.freelancerName.trim() || "there";
 
+  if (input.kind === "duplicate" || input.kind === "mismatch") {
+    return emailPaymentIssue(to, { ...input, kind: input.kind }, amount, dashboardUrl, name);
+  }
+
   const settled = input.kind === "settled";
   const via =
     input.source === "razorpay"
       ? " via Razorpay"
       : input.source === "stripe"
         ? " via Stripe"
-        : input.source === "upi"
-          ? " (UPI)"
-          : "";
+        : input.source === "dodo"
+          ? " via Dodo Payments"
+          : input.source === "upi"
+            ? " (UPI)"
+            : "";
 
   const subject = settled
     ? `Payment received · ${amount} · ${input.projectName}`
@@ -426,6 +440,46 @@ export async function notifyFreelancerOfPayment(input: {
     return mailed;
   } catch (error) {
     console.error("Freelancer payment email threw", error);
+    return { ok: false, error: "Email failed to send." };
+  }
+}
+
+const GATEWAY_NAMES: Record<string, string> = {
+  razorpay: "Razorpay",
+  stripe: "Stripe",
+  dodo: "Dodo Payments",
+};
+
+async function emailPaymentIssue(
+  to: string,
+  input: {
+    projectName: string;
+    clientName: string;
+    milestoneTitle: string;
+    kind: "duplicate" | "mismatch";
+    source?: string;
+  },
+  amount: string,
+  dashboardUrl: string,
+  name: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const gateway = GATEWAY_NAMES[input.source ?? ""] ?? "payment gateway";
+  const subject = `Action needed · ${amount} payment · ${input.projectName}`;
+  const detail =
+    input.kind === "duplicate"
+      ? `${input.milestoneTitle} was already paid, so this looks like a duplicate payment. You may want to refund it from your ${gateway} dashboard.`
+      : `The amount or currency doesn't match ${input.milestoneTitle}, so the milestone was not marked paid. Check the payment in your ${gateway} dashboard, then confirm or refund it.`;
+
+  const htmlBody = `<p>Hi ${escapeHtml(name)},</p>
+<p><strong>${escapeHtml(input.clientName)}</strong> paid <strong>${escapeHtml(amount)}</strong> on <strong>${escapeHtml(input.projectName)}</strong>.</p>
+<p>${escapeHtml(detail)}</p>
+<p><a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;margin:8px 0;padding:10px 16px;background:#f5f5f5;color:#090909;border-radius:8px;text-decoration:none;font-weight:600;">Open project</a></p>`;
+  const text = `${input.clientName} paid ${amount} on ${input.projectName}. ${detail}\n\n${dashboardUrl}`;
+
+  try {
+    return await sendEmail(to, subject, wrapHtml(subject, htmlBody), text);
+  } catch (error) {
+    console.error("Freelancer payment issue email threw", error);
     return { ok: false, error: "Email failed to send." };
   }
 }

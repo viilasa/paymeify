@@ -25,12 +25,17 @@ export interface PendingPaymentReport {
   reportedAt: string;
 }
 
-export interface DashboardSummary {
-  activeProjects: number;
+export interface CurrencyTotal {
+  currency: string;
   outstanding: number;
   collected: number;
-  /** Currency of the majority of projects, used for the summary figures. */
-  currency: string;
+  projects: number;
+}
+
+export interface DashboardSummary {
+  activeProjects: number;
+  /** Totals per currency, most-used first. Never summed across currencies. */
+  currencies: CurrencyTotal[];
 }
 
 function byPosition(a: Milestone, b: Milestone): number {
@@ -154,36 +159,36 @@ export const countPendingPaymentReports = cache(async (): Promise<number> => {
     .from("payments")
     .select("id", { count: "exact", head: true })
     .eq("gateway", "upi")
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .not("milestone_id", "is", null);
 
   if (error) throw new Error(error.message);
   return count ?? 0;
 });
 
+/** Money is never summed across currencies: each currency gets its own total. */
 export function summarise(projects: ProjectWithTotals[]): DashboardSummary {
-  let outstanding = 0;
-  let collected = 0;
   let activeProjects = 0;
-  const currencyCounts = new Map<string, number>();
+  const byCurrency = new Map<string, CurrencyTotal>();
 
   for (const { project, totals } of projects) {
     if (project.status === "archived") continue;
     if (project.status === "active") activeProjects += 1;
-    outstanding += totals.remaining;
-    collected += totals.paid;
-    currencyCounts.set(project.currency, (currencyCounts.get(project.currency) ?? 0) + 1);
+    const row = byCurrency.get(project.currency) ?? {
+      currency: project.currency,
+      outstanding: 0,
+      collected: 0,
+      projects: 0,
+    };
+    row.outstanding += totals.remaining;
+    row.collected += totals.paid;
+    row.projects += 1;
+    byCurrency.set(project.currency, row);
   }
 
-  let currency = "INR";
-  let best = 0;
-  for (const [code, count] of currencyCounts) {
-    if (count > best) {
-      best = count;
-      currency = code;
-    }
-  }
-
-  return { activeProjects, outstanding, collected, currency };
+  // Most-used currency first.
+  const currencies = [...byCurrency.values()].sort((a, b) => b.projects - a.projects);
+  return { activeProjects, currencies };
 }
 
 export interface ProjectDetail extends ProjectWithTotals {

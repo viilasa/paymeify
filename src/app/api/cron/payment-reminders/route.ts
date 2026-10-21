@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isCronAuthorized, notifyClient, recentlyReminded } from "@/lib/notify";
+import { needsPayment } from "@/lib/progress";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
   let skipped = 0;
 
   for (const project of projects ?? []) {
-    if (!project.client_email && !project.client_phone) {
+    if (project.reminders_enabled === false || (!project.client_email && !project.client_phone)) {
       skipped += 1;
       continue;
     }
@@ -38,10 +39,9 @@ export async function GET(request: NextRequest) {
       .eq("project_id", project.id)
       .order("position", { ascending: true });
 
-    const due = (milestones ?? []).find(
-      (row) => row.payment_status !== "paid" && Number(row.amount) > 0,
-    );
-    if (!due) {
+    const due = (milestones ?? []).find(needsPayment);
+    // Pending = checkout in flight or a UPI transfer reported; don't nag.
+    if (!due || due.payment_status === "pending") {
       skipped += 1;
       continue;
     }

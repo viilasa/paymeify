@@ -62,7 +62,7 @@ export async function POST(
 
     const { data: milestones } = await admin
       .from("milestones")
-      .select("id, position, payment_status")
+      .select("id, position, payment_status, amount")
       .eq("project_id", project.id);
 
     if (!milestones?.length) {

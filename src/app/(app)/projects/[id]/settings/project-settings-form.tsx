@@ -26,10 +26,19 @@ import {
 } from "@/components/ui/select";
 import { emptyActionState } from "@/lib/action-result";
 import type { Project } from "@/lib/supabase/types";
+import { useKeepFormValues } from "@/lib/use-keep-form-values";
 import { useServerAction } from "@/lib/use-server-action";
 
-export function ProjectSettingsForm({ project }: { project: Project }) {
+export function ProjectSettingsForm({
+  project,
+  currencyLocked = false,
+}: {
+  project: Project;
+  /** True once a checkout, payment, or paid milestone exists. */
+  currencyLocked?: boolean;
+}) {
   const [state, formAction] = useActionState(updateProjectAction, emptyActionState);
+  const { onSubmit, pending: isPending } = useKeepFormValues(formAction);
   const { pending, run } = useServerAction();
   const [confirm, setConfirm] = React.useState<"delete" | "regenerate" | null>(null);
 
@@ -43,7 +52,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
 
   return (
     <div className="space-y-10">
-      <form action={formAction} className="space-y-6">
+      <form onSubmit={onSubmit} className="space-y-6">
         <input type="hidden" name="project_id" value={project.id} />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -94,8 +103,13 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
             <PhoneInput defaultValue={project.client_phone} />
           </Field>
 
-          <Field label="Currency" htmlFor="currency" error={state.fieldErrors?.currency}>
-            <CurrencySelect defaultValue={project.currency} />
+          <Field
+            label="Currency"
+            htmlFor="currency"
+            hint={currencyLocked ? "Locked — this project already has payments." : undefined}
+            error={state.fieldErrors?.currency}
+          >
+            <CurrencySelect defaultValue={project.currency} disabled={currencyLocked} />
           </Field>
 
           <Field label="Start date" htmlFor="start_date" error={state.fieldErrors?.start_date}>
@@ -145,9 +159,24 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
           />
         </Field>
 
+        <label className="flex items-start gap-2.5 text-[13px]">
+          <input
+            type="checkbox"
+            name="reminders_enabled"
+            defaultChecked={project.reminders_enabled !== false}
+            className="mt-0.5 size-4 accent-foreground"
+          />
+          <span>
+            Send automatic payment reminders
+            <span className="block text-[12px] text-muted-foreground">
+              Emails or texts your client every few days while a milestone is unpaid.
+            </span>
+          </span>
+        </label>
+
         <FormBanner error={state.error} />
 
-        <SubmitButton variant="primary" pendingLabel="Saving…">
+        <SubmitButton variant="primary" pendingLabel="Saving…" pending={isPending}>
           Save changes
         </SubmitButton>
       </form>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowDown,
   ArrowUp,
@@ -8,6 +10,7 @@ import {
   CircleDashed,
   CircleDot,
   CircleCheck,
+  GripVertical,
   Link2Off,
   MoreHorizontal,
   Pencil,
@@ -39,9 +42,12 @@ import {
 import { formatDate, formatMoney, formatPosition } from "@/lib/format";
 import type { Invoice, Milestone } from "@/lib/supabase/types";
 import { useServerAction } from "@/lib/use-server-action";
+import { cn } from "@/lib/utils";
 
 interface MilestoneItemProps {
   milestone: Milestone;
+  /** Number shown in the list; follows a drag before the server confirms it. */
+  displayPosition: number;
   projectId: string;
   currency: string;
   isFirst: boolean;
@@ -57,6 +63,7 @@ interface MilestoneItemProps {
 
 export function MilestoneItem({
   milestone,
+  displayPosition,
   projectId,
   currency,
   isFirst,
@@ -75,11 +82,60 @@ export function MilestoneItem({
   const hasLink = Boolean(milestone.payment_link_url);
   const canInvoice = !isPaid && Number(milestone.amount) > 0;
 
+  // Same rules as milestoneOrderProblem: these keep their place.
+  const lockReason = isPaid
+    ? "Paid milestones keep their number"
+    : milestone.payment_link_id
+      ? "Release the open checkout to move this milestone"
+      : null;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: milestone.id,
+    // Locked rows can't be picked up, but others can still be dropped around them.
+    disabled: { draggable: Boolean(lockReason), droppable: false },
+  });
+
   return (
-    <li className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:gap-4">
-      <span className="mt-0.5 font-mono text-[11px] text-subtle-foreground sm:w-6">
-        {formatPosition(milestone.position)}
-      </span>
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(
+        "flex flex-col gap-3 bg-card px-4 py-4 first:rounded-t-[10px] last:rounded-b-[10px] sm:flex-row sm:items-start sm:gap-4",
+        isDragging && "relative z-10 rounded-[10px] shadow-lg shadow-black/40 ring-1 ring-border-strong",
+      )}
+    >
+      <div className="flex items-center gap-1 sm:-ml-2 sm:w-10 sm:items-start">
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={
+            lockReason
+              ? `${milestone.title}: ${lockReason}`
+              : `Reorder ${milestone.title}, number ${displayPosition}`
+          }
+          title={lockReason ?? "Drag to reorder"}
+          className={cn(
+            "-my-1 flex size-7 shrink-0 touch-none items-center justify-center rounded-[6px] text-subtle-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+            lockReason
+              ? "cursor-not-allowed opacity-30"
+              : "cursor-grab hover:bg-surface hover:text-foreground active:cursor-grabbing",
+          )}
+        >
+          <GripVertical className="size-3.5" />
+        </button>
+        <span className="font-mono text-[11px] text-subtle-foreground sm:mt-0.5">
+          {formatPosition(displayPosition)}
+        </span>
+      </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -218,7 +274,9 @@ export function MilestoneItem({
                     Mark as paid
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onSelect={() => run(remindClientAction, { project_id: projectId })}
+                    onSelect={() =>
+                      run(remindClientAction, { project_id: projectId, milestone_id: milestone.id })
+                    }
                   >
                     <Bell />
                     Remind client to pay

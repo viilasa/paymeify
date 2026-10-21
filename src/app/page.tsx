@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
@@ -91,6 +92,13 @@ const faqs = [
     a: "Freelancers and small studios who bill by milestone — websites, design, video, retainers split into stages.",
   },
 ];
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+    languages: { "en-IN": "/", en: "/" },
+  },
+};
 
 export default function LandingPage() {
   return (

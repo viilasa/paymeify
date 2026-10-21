@@ -53,10 +53,15 @@ function prune(now: number) {
 }
 
 export function clientIp(request: Request): string {
+  // Set by Vercel's edge and not client-controllable, unlike X-Forwarded-For's
+  // first entry, which a caller can prepend to.
+  const platform =
+    request.headers.get("x-vercel-forwarded-for") ?? request.headers.get("x-real-ip");
+  const fromPlatform = platform?.split(",")[0]?.trim();
+  if (fromPlatform) return fromPlatform;
+
+  // Elsewhere, the last hop was added by our own proxy.
   const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return request.headers.get("x-real-ip")?.trim() || "unknown";
+  const last = forwarded?.split(",").at(-1)?.trim();
+  return last || "unknown";
 }

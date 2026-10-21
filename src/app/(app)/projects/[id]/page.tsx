@@ -98,8 +98,8 @@ export default async function ProjectDetailPage({
             Your client can see this project but cannot pay yet.{" "}
             <Link href="/settings" className="underline underline-offset-2">
               {supportsUpi(project.currency)
-                ? "Add a UPI ID or connect Razorpay"
-                : "Connect Stripe"}
+                ? "Add a UPI ID or connect Razorpay or Dodo Payments"
+                : "Connect Stripe or Dodo Payments"}
             </Link>{" "}
             in Settings.
           </p>

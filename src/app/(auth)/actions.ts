@@ -10,6 +10,7 @@ import {
 } from "@/lib/action-result";
 import { appUrl } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/utils";
 import {
   fieldErrorsFrom,
   forgotPasswordSchema,
@@ -20,9 +21,7 @@ import {
 
 /** Only allow same-origin relative paths as post-login destinations. */
 function safeNext(value: FormDataEntryValue | null): string {
-  if (typeof value !== "string") return "/dashboard";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
-  return value;
+  return safeRedirectPath(value);
 }
 
 function isNextRedirect(error: unknown): boolean {

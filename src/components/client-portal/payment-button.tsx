@@ -24,6 +24,16 @@ export function PaymentButton({
 }: PaymentButtonProps) {
   const [pending, setPending] = React.useState(false);
 
+  // Coming Back from the gateway restores this page from the bfcache with the
+  // button still in "Opening…"; re-enable it.
+  React.useEffect(() => {
+    const reset = (event: PageTransitionEvent) => {
+      if (event.persisted) setPending(false);
+    };
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
+
   async function startPayment() {
     if (demo) {
       toast.info("This is a demo project — payments are disabled.");

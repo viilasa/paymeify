@@ -40,6 +40,19 @@ migrations in order using the SQL editor (or `supabase db push` with the CLI):
    land on the profile row
 7. `supabase/migrations/0007_client_notifications.sql` — client phone and
    the email/SMS send log
+8. `supabase/migrations/0008_invoices.sql` — numbered milestone invoices and
+   the public invoice page
+9. `supabase/migrations/0009_plans.sql` — profile plan column (unused now
+   that Paymeify is free, but later migrations expect it)
+10. `supabase/migrations/0010_payment_pending_status.sql` — `pending` payment
+    status for open checkouts and reported UPI transfers
+11. `supabase/migrations/0011_dodo_payments.sql` — Dodo Payments as a third
+    gateway (connecting Dodo fails without it)
+12. `supabase/migrations/0012_payment_hardening.sql` — tighter RLS inserts,
+    UPI report rules, invoice links by number, per-project reminder switch
+13. `supabase/migrations/0013_milestone_positions.sql` — renumbers milestones
+    1..n, makes positions unique per project, and adds the atomic reorder used
+    by drag-and-drop
 
 Copy the project URL and keys from **Project Settings → API** into
 `.env.local` (or Vercel **Environment Variables**):
@@ -122,6 +135,12 @@ to `payment_link.paid`, `payment_link.expired`, `payment_link.cancelled`.
 
 **Everywhere else** — Stripe. Subscribe to `checkout.session.completed` and
 `checkout.session.expired`.
+
+**Any currency** — Dodo Payments (merchant of record). Used for a project when
+its currency's own gateway above is not connected. Paste the API key (live or
+test mode is detected) and add `/api/webhooks/dodo` under Developer → Webhooks,
+subscribed to `payment.succeeded` and `payment.cancelled`. Each checkout creates
+a one-time, tax-inclusive product for the milestone amount.
 
 For local webhook testing, tunnel the dev server (`ngrok http 3000`) and set
 `NEXT_PUBLIC_APP_URL` to that hostname so Settings shows a reachable URL.

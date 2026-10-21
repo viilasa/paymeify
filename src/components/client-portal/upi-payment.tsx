@@ -136,6 +136,7 @@ export function UpiPayment({
             value={reference}
             onChange={(event) => setReference(event.target.value)}
             placeholder="Reference number (optional)"
+            aria-label="UPI reference number (optional)"
             maxLength={64}
             autoCapitalize="characters"
             spellCheck={false}

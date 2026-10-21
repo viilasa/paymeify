@@ -1,7 +1,7 @@
 export type ProjectStatus = "draft" | "active" | "completed" | "archived";
 export type MilestoneStatus = "pending" | "in_progress" | "completed";
 export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed";
-export type PaymentProvider = "razorpay" | "stripe";
+export type PaymentProvider = "razorpay" | "stripe" | "dodo";
 export type PaymentConnectionStatus = "connected" | "invalid";
 export type PaymentRecordStatus =
   | "created"
@@ -10,8 +10,6 @@ export type PaymentRecordStatus =
   | "failed"
   | "cancelled"
   | "expired";
-
-export type PlanTier = "free" | "pro";
 
 export type Profile = {
   id: string;
@@ -22,7 +20,6 @@ export type Profile = {
   /** UPI Virtual Payment Address, e.g. `priya@okhdfcbank`. INR only. */
   upi_id: string | null;
   /** free = trial (1 project). pro = unlimited. */
-  plan: PlanTier;
   created_at: string;
   updated_at: string;
 };
@@ -79,6 +76,8 @@ export type Project = {
   public_token: string;
   start_date: string | null;
   due_date: string | null;
+  /** Daily payment reminders on/off (migration 0012). */
+  reminders_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -157,7 +156,7 @@ export interface Database {
         Row: Profile;
         Insert: Writable<
           Profile,
-          "id" | "created_at" | "updated_at" | "business_name" | "upi_id" | "plan"
+          "id" | "created_at" | "updated_at" | "business_name" | "upi_id"
         >;
         Update: Partial<Profile>;
         Relationships: [];
@@ -177,6 +176,7 @@ export interface Database {
           | "description"
           | "start_date"
           | "due_date"
+          | "reminders_enabled"
         >;
         Update: Partial<Project>;
         Relationships: [];
@@ -266,6 +266,14 @@ export interface Database {
       get_invoice_by_token: {
         Args: { p_token: string; p_position: number };
         Returns: unknown;
+      };
+      get_invoice_by_number: {
+        Args: { p_token: string; p_number: string };
+        Returns: unknown;
+      };
+      reorder_milestones: {
+        Args: { p_project_id: string; p_ids: string[] };
+        Returns: undefined;
       };
       report_payment_by_token: {
         Args: { p_token: string; p_position: number; p_reference: string | null };

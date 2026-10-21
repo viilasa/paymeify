@@ -72,44 +72,50 @@ export async function ensureInvoiceForMilestone(input: {
     if (paid) return paid;
   }
 
-  const number = await nextInvoiceNumber(db, project.user_id);
   const now = new Date().toISOString();
 
-  const { data, error } = await db
-    .from("invoices")
-    .insert({
-      user_id: project.user_id,
-      project_id: project.id,
-      milestone_id: milestone.id,
-      number,
-      from_name: senderName(profile),
-      client_name: project.client_name,
-      client_email: project.client_email,
-      line_title: milestone.title,
-      amount: Number(milestone.amount),
-      currency: project.currency,
-      due_date: milestone.due_date,
-      status: milestone.payment_status === "paid" ? "paid" : "sent",
-      issued_at: now,
-      paid_at: milestone.payment_status === "paid" ? milestone.paid_at ?? now : null,
-    })
-    .select("*")
-    .single();
+  // Numbers are per freelancer, so two invoices created at once can pick the
+  // same one; the unique index rejects the loser and it tries the next number.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const number = await nextInvoiceNumber(db, project.user_id);
+    const { data, error } = await db
+      .from("invoices")
+      .insert({
+        user_id: project.user_id,
+        project_id: project.id,
+        milestone_id: milestone.id,
+        number,
+        from_name: senderName(profile),
+        client_name: project.client_name,
+        client_email: project.client_email,
+        line_title: milestone.title,
+        amount: Number(milestone.amount),
+        currency: project.currency,
+        due_date: milestone.due_date,
+        status: milestone.payment_status === "paid" ? "paid" : "sent",
+        issued_at: now,
+        paid_at: milestone.payment_status === "paid" ? milestone.paid_at ?? now : null,
+      })
+      .select("*")
+      .single();
 
-  if (error || !data) {
-    if (error?.code === "23505") {
-      const { data: raced } = await db
-        .from("invoices")
-        .select("*")
-        .eq("milestone_id", milestone.id)
-        .eq("status", "sent")
-        .maybeSingle();
-      if (raced) return raced;
+    if (data && !error) return data;
+    if (error?.code !== "23505") {
+      console.error("invoice insert failed", error?.message);
+      throw new AppError("Could not create the invoice.");
     }
-    throw new AppError(error?.message || "Could not create the invoice.");
+
+    // Either this milestone already got an open invoice, or the number was taken.
+    const { data: raced } = await db
+      .from("invoices")
+      .select("*")
+      .eq("milestone_id", milestone.id)
+      .eq("status", "sent")
+      .maybeSingle();
+    if (raced) return raced;
   }
 
-  return data;
+  throw new AppError("Could not allocate an invoice number. Try again.");
 }
 
 export async function markInvoiceSent(db: Db, invoiceId: string): Promise<void> {
@@ -134,11 +140,53 @@ export async function markInvoicePaidForMilestone(
   if (error) console.error("Could not mark invoice paid", error.message);
 }
 
+/** Invoice links use the invoice number, which never moves when milestones do. */
 export function invoicePublicUrl(
   project: Pick<Project, "public_token">,
-  position: number,
+  invoiceNumber: string,
 ): string {
-  return `${appUrl()}/p/${project.public_token}/invoice/${position}`;
+  return `${appUrl()}/p/${project.public_token}/invoice/${encodeURIComponent(invoiceNumber)}`;
+}
+
+/** A paid invoice goes back to due when its milestone is reopened. */
+export async function reopenInvoiceForMilestone(db: Db, milestoneId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { data: open } = await db
+    .from("invoices")
+    .select("id")
+    .eq("milestone_id", milestoneId)
+    .eq("status", "sent")
+    .limit(1);
+  if (open?.length) return;
+
+  const { data: latest } = await db
+    .from("invoices")
+    .select("id")
+    .eq("milestone_id", milestoneId)
+    .eq("status", "paid")
+    .order("issued_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!latest) return;
+
+  const { error } = await db
+    .from("invoices")
+    .update({ status: "sent", paid_at: null, updated_at: now })
+    .eq("id", latest.id);
+  if (error) console.error("Could not reopen invoice", error.message);
+}
+
+/**
+ * Voids the open invoice when the milestone's amount, title, or due date
+ * changes, so the next send issues a fresh one instead of the stale snapshot.
+ */
+export async function voidOpenInvoiceForMilestone(db: Db, milestoneId: string): Promise<void> {
+  const { error } = await db
+    .from("invoices")
+    .update({ status: "void", updated_at: new Date().toISOString() })
+    .eq("milestone_id", milestoneId)
+    .eq("status", "sent");
+  if (error) console.error("Could not void invoice", error.message);
 }
 
 export async function listInvoicesForProject(
@@ -153,6 +201,33 @@ export async function listInvoicesForProject(
 
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+export type PublicInvoiceView = NonNullable<Awaited<ReturnType<typeof getInvoiceByTokenAndPosition>>>;
+
+/** `ref` is an invoice number (INV-0003) or, for older links, a milestone position. */
+export async function getPublicInvoice(token: string, ref: string): Promise<PublicInvoiceView | null> {
+  const decoded = decodeURIComponent(ref).trim();
+  if (/^INV-\d{1,10}$/i.test(decoded)) return getInvoiceByTokenAndNumber(token, decoded);
+  if (/^\d{1,4}$/.test(decoded)) return getInvoiceByTokenAndPosition(token, Number(decoded));
+  return null;
+}
+
+async function getInvoiceByTokenAndNumber(
+  token: string,
+  number: string,
+): Promise<PublicInvoiceView | null> {
+  if (!token) return null;
+  const db = await createSupabaseServerClient();
+  const { data, error } = await db.rpc("get_invoice_by_number", {
+    p_token: token,
+    p_number: number,
+  });
+  if (error) {
+    console.error("get_invoice_by_number", error.message);
+    return null;
+  }
+  return parsePublicInvoice(data, 0);
 }
 
 export async function getInvoiceByTokenAndPosition(
@@ -187,6 +262,10 @@ export async function getInvoiceByTokenAndPosition(
     console.error("get_invoice_by_token", error.message);
     return null;
   }
+  return parsePublicInvoice(data, position);
+}
+
+function parsePublicInvoice(data: unknown, position: number) {
   if (!data || typeof data !== "object") return null;
 
   const row = data as {

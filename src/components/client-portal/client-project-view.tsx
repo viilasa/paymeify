@@ -25,10 +25,12 @@ interface ClientProjectViewProps extends PublicProjectView {
   autoPay?: boolean;
   /**
    * Position of the milestone the client just came back from paying, taken
-   * from Razorpay's callback URL. Used only to decide which message to show —
+   * from the gateway's return URL. Used only to decide which message to show —
    * never to change payment status.
    */
   returnedFrom?: number;
+  /** The gateway said the payment failed or was cancelled. */
+  returnFailed?: boolean;
 }
 
 export async function ClientProjectView({
@@ -40,6 +42,7 @@ export async function ClientProjectView({
   demo = false,
   autoPay = false,
   returnedFrom,
+  returnFailed = false,
 }: ClientProjectViewProps) {
   const paidMilestone = returnedFrom
     ? milestones.find((m) => m.position === returnedFrom)
@@ -53,12 +56,12 @@ export async function ClientProjectView({
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-14">
       {/* Who this is from */}
-      <p className="text-[12px] text-muted-foreground">{project.business_name}</p>
-      <h1 className="mt-1.5 text-[22px] leading-tight font-medium tracking-tight sm:text-[26px]">
+      <p className="text-[12px] break-words text-muted-foreground">{project.business_name}</p>
+      <h1 className="mt-1.5 text-[22px] leading-tight font-medium tracking-tight break-words sm:text-[26px]">
         {project.name}
       </h1>
       {project.description ? (
-        <p className="mt-2.5 text-[13px] leading-relaxed text-muted-foreground">
+        <p className="mt-2.5 text-[13px] leading-relaxed break-words whitespace-pre-line text-muted-foreground">
           {project.description}
         </p>
       ) : null}
@@ -68,6 +71,7 @@ export async function ClientProjectView({
           <PaymentReturnBanner
             milestoneTitle={paidMilestone.title}
             isPaid={paidMilestone.payment_status === "paid"}
+            failed={returnFailed && paidMilestone.payment_status !== "paid"}
             hasNext={Boolean(current) && paidMilestone.payment_status === "paid"}
           />
         </div>
@@ -82,6 +86,7 @@ export async function ClientProjectView({
           {totals.deliveryProgress}%
         </p>
         <ProgressBar
+          label="Project progress"
           className="mt-4"
           value={totals.deliveryProgress}
           tone={totals.deliveryProgress === 100 ? "success" : "default"}
@@ -210,12 +215,12 @@ function MilestoneRow({
             {isPaid ? <Check className="size-3.5" /> : formatPosition(milestone.position)}
           </span>
           <div className="min-w-0">
-            <p className="text-[14px] font-medium">{milestone.title}</p>
+            <p className="text-[14px] font-medium break-words">{milestone.title}</p>
             <p className="mt-0.5 text-[12px] text-muted-foreground">
               {statusLabel(milestone)}
             </p>
             {milestone.description ? (
-              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-[12px] leading-relaxed break-words whitespace-pre-line text-muted-foreground">
                 {milestone.description}
               </p>
             ) : null}
@@ -237,7 +242,7 @@ function MilestoneRow({
         </div>
       </div>
 
-      {showPayment && autoPay ? (
+      {showPayment && autoPay && !milestone.payment_reported ? (
         <div className="mt-4 border-t border-border pt-4">
           <p className="mb-3 text-[12px] text-muted-foreground">
             Pay here. This milestone updates when the payment clears.
@@ -280,9 +285,8 @@ function statusLabel(milestone: PublicMilestone): string {
   if (milestone.payment_status === "paid") {
     return milestone.paid_at ? `Completed · paid ${formatDate(milestone.paid_at)}` : "Completed";
   }
-  if (milestone.payment_reported || milestone.payment_status === "pending") {
-    return "Awaiting payment confirmation";
-  }
+  if (milestone.payment_reported) return "Awaiting payment confirmation";
+  if (milestone.payment_status === "pending") return "Checkout started · not paid yet";
   if (milestone.payment_status === "failed") return "Payment failed · try again or contact them";
   if (milestone.status === "in_progress") return "In progress";
   if (milestone.status === "completed") return "Completed · awaiting payment";

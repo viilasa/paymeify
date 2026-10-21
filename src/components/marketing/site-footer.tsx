@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { CurrentYear } from "@/components/local-time";
+
 const links = [
   { href: "/demo", label: "Demo" },
   { href: "/login", label: "Log in" },
@@ -14,7 +16,7 @@ export function SiteFooter() {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[12px] text-subtle-foreground">
-            © {new Date().getFullYear()} Paymeify
+            © <CurrentYear fallback={new Date().getFullYear()} /> Paymeify
           </p>
           <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-subtle-foreground">
             {links.map((link) => (

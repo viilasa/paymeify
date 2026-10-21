@@ -94,7 +94,7 @@ export async function connectGatewayAction(
     const { user } = await requireSession();
     const parsed = paymentConnectionSchema.safeParse({
       provider: formData.get("provider"),
-      key_id: formData.get("key_id"),
+      key_id: formData.get("key_id") ?? "",
       secret: formData.get("secret"),
       webhook_secret: formData.get("webhook_secret"),
     });
@@ -121,7 +121,9 @@ export async function connectGatewayAction(
     return success(
       parsed.data.provider === "razorpay"
         ? "Razorpay is connected. Automatic payments are on for INR projects."
-        : "Stripe is connected. Automatic payments are on for non-INR projects.",
+        : parsed.data.provider === "dodo"
+          ? "Dodo Payments is connected. It takes any project Razorpay or Stripe does not."
+          : "Stripe is connected. Automatic payments are on for non-INR projects.",
     );
   } catch (error) {
     return failure(toUserMessage(error, "Could not connect that account."));
@@ -135,13 +137,38 @@ export async function disconnectGatewayAction(
   try {
     const { user } = await requireSession();
     const provider = formData.get("provider");
-    if (provider !== "razorpay" && provider !== "stripe") {
+    if (provider !== "razorpay" && provider !== "stripe" && provider !== "dodo") {
       return failure("Unknown payment provider.");
+    }
+
+    const supabase = await createSupabaseServerClient();
+
+    // Disconnecting deletes the webhook secret, so payments on open checkouts
+    // could never be verified or recorded.
+    const { data: openLinks } = await supabase
+      .from("payments")
+      .select("gateway_payment_link_id")
+      .eq("gateway", provider)
+      .in("status", ["created", "pending"])
+      .not("gateway_payment_link_id", "is", null);
+    const linkIds = [
+      ...new Set((openLinks ?? []).map((row) => row.gateway_payment_link_id as string)),
+    ];
+    if (linkIds.length) {
+      const { data: open } = await supabase
+        .from("milestones")
+        .select("id")
+        .in("payment_link_id", linkIds)
+        .neq("payment_status", "paid");
+      if (open?.length) {
+        return failure(
+          `${open.length} milestone${open.length === 1 ? " has" : "s have"} an open checkout on this account. Release ${open.length === 1 ? "it" : "them"} from the project page before disconnecting.`,
+        );
+      }
     }
 
     await deleteConnection(user.id, provider);
 
-    const supabase = await createSupabaseServerClient();
     revalidatePath("/settings");
     const { data: projects } = await supabase.from("projects").select("public_token");
     for (const { public_token } of projects ?? []) {

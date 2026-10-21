@@ -4,6 +4,7 @@ import Link from "next/link";
 import { SignupForm } from "@/app/(auth)/signup/signup-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { FormBanner } from "@/components/form-banner";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 export const metadata: Metadata = {
   title: "Sign up",
@@ -36,9 +37,9 @@ export default async function SignupPage({
         </>
       }
     >
-      {error ? (
+      {authErrorMessage(error) ? (
         <div className="mb-4">
-          <FormBanner error={error} />
+          <FormBanner error={authErrorMessage(error) ?? undefined} />
         </div>
       ) : null}
       <SignupForm />

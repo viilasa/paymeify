@@ -16,7 +16,7 @@ export const site = {
   name: "Paymeify",
   tagline: "Projects delivered. Payments tracked.",
   description:
-    "Milestone tracker and payment collector for freelancers in India and worldwide. Create a project, share one private link, and get paid by UPI, Razorpay, or Stripe as you deliver.",
+    "Milestone tracker and payment collector for freelancers in India and worldwide. Create a project, share one private link, and get paid by UPI, Razorpay, Stripe, or Dodo Payments as you deliver.",
   locale: "en_IN",
   language: "en-IN",
   region: "IN",
@@ -27,6 +27,7 @@ export const site = {
     "GPay client portal",
     "Razorpay payment links",
     "Stripe milestone checkout",
+    "Dodo Payments freelancer checkout",
     "project milestone tracker",
   ],
   googleSiteVerification: "0Lc8dOEUtOZFuicKxw4G0zPohl5ZPmOevrIhXxwxvLI",

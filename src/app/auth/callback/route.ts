@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/utils";
 
 /**
  * Landing point for Supabase email links (confirmation and password reset).
@@ -14,14 +15,12 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
   const nextParam = searchParams.get("next");
-  const next =
-    nextParam?.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/dashboard";
+  const next = safeRedirectPath(nextParam);
   const oauthError = searchParams.get("error_description") ?? searchParams.get("error");
 
   if (oauthError) {
-    return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(oauthError)}`,
-    );
+    console.warn("auth callback error", oauthError);
+    return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -35,6 +34,6 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(
-    `${origin}/login?error=${encodeURIComponent("That link is invalid or has expired.")}`,
+    `${origin}/login?error=link_invalid`,
   );
 }

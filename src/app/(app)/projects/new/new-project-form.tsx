@@ -19,19 +19,22 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { emptyActionState } from "@/lib/action-result";
+import { useKeepFormValues } from "@/lib/use-keep-form-values";
 
+// Fixed keys: random ones differ between server and client render.
 const starterDrafts: MilestoneDraft[] = [
-  { ...emptyDraft(), title: "Discovery" },
-  { ...emptyDraft(), title: "Design" },
+  { ...emptyDraft(), key: "starter-1", title: "Discovery" },
+  { ...emptyDraft(), key: "starter-2", title: "Design" },
 ];
 
 export function NewProjectForm() {
   const [state, formAction] = useActionState(createProjectAction, emptyActionState);
+  const { onSubmit, pending } = useKeepFormValues(formAction);
   const [drafts, setDrafts] = React.useState<MilestoneDraft[]>(starterDrafts);
   const [currency, setCurrency] = React.useState("INR");
 
   return (
-    <form action={formAction} className="space-y-8">
+    <form onSubmit={onSubmit} className="space-y-8">
       <section className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Project name" htmlFor="name" error={state.fieldErrors?.name}>
@@ -135,7 +138,7 @@ export function NewProjectForm() {
       <FormBanner error={state.error} />
 
       <div className="flex items-center gap-2">
-        <SubmitButton variant="primary" pendingLabel="Creating…">
+        <SubmitButton variant="primary" pendingLabel="Creating…" pending={pending}>
           Create Project
         </SubmitButton>
         <Button asChild variant="ghost">

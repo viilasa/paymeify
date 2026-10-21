@@ -4,6 +4,8 @@ import Link from "next/link";
 import { LoginForm } from "@/app/(auth)/login/login-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { FormBanner } from "@/components/form-banner";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { safeRedirectPath } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Log in",
@@ -22,7 +24,7 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const { next, error } = await searchParams;
-  const destination = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  const destination = safeRedirectPath(next);
 
   return (
     <AuthShell
@@ -37,9 +39,9 @@ export default async function LoginPage({
         </>
       }
     >
-      {error ? (
+      {authErrorMessage(error) ? (
         <div className="mb-4">
-          <FormBanner error={error} />
+          <FormBanner error={authErrorMessage(error) ?? undefined} />
         </div>
       ) : null}
       <LoginForm next={destination} />

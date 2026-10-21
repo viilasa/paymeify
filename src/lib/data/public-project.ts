@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { z } from "zod";
 
 import { computeTotals, findCurrentMilestone, type ProjectTotals } from "@/lib/progress";
@@ -12,8 +13,9 @@ const publicMilestoneSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   amount: z.coerce.number(),
-  status: z.enum(["pending", "in_progress", "completed"]),
-  payment_status: z.enum(["unpaid", "pending", "paid", "failed"]),
+  // .catch keeps the whole portal up if a newer migration adds a value.
+  status: z.enum(["pending", "in_progress", "completed"]).catch("pending"),
+  payment_status: z.enum(["unpaid", "pending", "paid", "failed"]).catch("unpaid"),
   due_date: z.string().nullable(),
   paid_at: z.string().nullable(),
   /**
@@ -27,7 +29,7 @@ const publicMilestoneSchema = z.object({
 const publicProjectSchema = z.object({
   name: z.string(),
   description: z.string().nullable(),
-  status: z.enum(["draft", "active", "completed", "archived"]),
+  status: z.enum(["draft", "active", "completed", "archived"]).catch("active"),
   currency: z.string(),
   client_name: z.string(),
   start_date: z.string().nullable(),
@@ -36,7 +38,7 @@ const publicProjectSchema = z.object({
   /** Where to send a UPI transfer. Null until the freelancer adds one. */
   upi_id: z.string().nullable().default(null),
   /** Hosted checkout the owner has connected, if any. */
-  auto_pay: z.enum(["razorpay", "stripe"]).nullable().default(null),
+  auto_pay: z.enum(["razorpay", "stripe", "dodo"]).nullable().default(null).catch(null),
   milestones: z.array(publicMilestoneSchema),
 });
 
@@ -56,7 +58,10 @@ export function isValidToken(token: string): boolean {
   return /^[0-9a-f]{20,64}$/i.test(token);
 }
 
-export async function getPublicProject(token: string): Promise<PublicProjectView | null> {
+/** Cached per request: the portal page and its metadata share one RPC call. */
+export const getPublicProject = cache(async function getPublicProject(
+  token: string,
+): Promise<PublicProjectView | null> {
   if (!isValidToken(token)) return null;
 
   const supabase = createSupabaseAnonClient();
@@ -75,7 +80,7 @@ export async function getPublicProject(token: string): Promise<PublicProjectView
   }
 
   return buildView(parsed.data);
-}
+});
 
 export function buildView(project: PublicProject): PublicProjectView {
   const milestones = [...project.milestones].sort((a, b) => a.position - b.position);

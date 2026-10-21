@@ -10,12 +10,15 @@ import { useRouter } from "next/navigation";
 export function PaymentReturnBanner({
   milestoneTitle,
   isPaid,
+  failed = false,
   hasNext,
   attempts = 8,
   intervalMs = 4000,
 }: {
   milestoneTitle: string;
   isPaid: boolean;
+  /** The gateway reported a failed or cancelled payment. */
+  failed?: boolean;
   hasNext: boolean;
   attempts?: number;
   intervalMs?: number;
@@ -24,7 +27,7 @@ export function PaymentReturnBanner({
   const [exhausted, setExhausted] = React.useState(false);
 
   React.useEffect(() => {
-    if (isPaid || exhausted) return;
+    if (isPaid || failed || exhausted) return;
 
     let remaining = attempts;
     const id = window.setInterval(() => {
@@ -37,7 +40,16 @@ export function PaymentReturnBanner({
     }, intervalMs);
 
     return () => window.clearInterval(id);
-  }, [router, attempts, intervalMs, isPaid, exhausted]);
+  }, [router, attempts, intervalMs, isPaid, failed, exhausted]);
+
+  if (failed) {
+    return (
+      <Banner tone="pending">
+        That payment for {milestoneTitle} did not go through, and no money was taken by
+        Paymeify. You can try again below.
+      </Banner>
+    );
+  }
 
   if (isPaid) {
     return (
@@ -51,8 +63,9 @@ export function PaymentReturnBanner({
   if (exhausted) {
     return (
       <Banner tone="pending">
-        Still confirming your payment. If money left your account, your freelancer
-        will update this once it clears — you do not need to pay again.
+        Still confirming your payment. If money left your account, it will show here
+        once it clears — please don&apos;t pay again. If nothing was charged, you can
+        try again below.
       </Banner>
     );
   }

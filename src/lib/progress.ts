@@ -49,14 +49,18 @@ export function computeTotals(milestones: ProgressInput[]): ProjectTotals {
   };
 }
 
+/** True when a milestone still needs money: unpaid and priced above zero. */
+export function needsPayment(m: { payment_status: PaymentStatus; amount: number | string }): boolean {
+  return m.payment_status !== "paid" && Number(m.amount) > 0;
+}
+
 /**
  * The milestone the client is expected to pay next: the lowest-positioned one
- * that has not been paid. Everything after it is "upcoming".
+ * that still needs paying. Zero-amount milestones are skipped so they never
+ * block the queue. Everything after it is "upcoming".
  */
-export function findCurrentMilestone<T extends { position: number; payment_status: PaymentStatus }>(
-  milestones: T[],
-): T | undefined {
-  return [...milestones]
-    .sort((a, b) => a.position - b.position)
-    .find((m) => m.payment_status !== "paid");
+export function findCurrentMilestone<
+  T extends { position: number; payment_status: PaymentStatus; amount: number | string },
+>(milestones: T[]): T | undefined {
+  return [...milestones].sort((a, b) => a.position - b.position).find(needsPayment);
 }

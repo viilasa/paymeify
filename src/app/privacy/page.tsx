@@ -42,7 +42,7 @@ export default function PrivacyPage() {
         </li>
         <li>
           Payments: payment status, optional UPI reference the client typed,
-          and webhook event IDs from Razorpay or Stripe. We store encrypted
+          and webhook event IDs from Razorpay, Stripe, or Dodo Payments. We store encrypted
           copies of gateway keys you paste in Settings. We do not store full
           card numbers.
         </li>
@@ -78,8 +78,10 @@ export default function PrivacyPage() {
           Vercel and Supabase) under their terms.
         </li>
         <li>
-          Payment providers you connect (Razorpay, Stripe) when a client pays
-          through them. Their privacy policies apply to that checkout.
+          Payment providers you connect (Razorpay, Stripe, Dodo Payments) when a
+          client pays through them. We pass them the client&apos;s name and email
+          for the checkout. Dodo Payments acts as merchant of record for its
+          checkouts. Their privacy policies apply to that checkout.
         </li>
         <li>
           Google Analytics, to understand how the public site is used. See

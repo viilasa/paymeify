@@ -26,9 +26,9 @@ const demoProject: PublicProject = {
   start_date: null,
   due_date: null,
   business_name: "ABC Studio",
-  // Not a real VPA — it renders a realistic QR, and any scan fails harmlessly
-  // at the bank because the address does not exist.
-  upi_id: "abcstudio@okhdfcbank",
+  // "@example" is not a UPI handle any bank issues, so a scan of the demo QR
+  // can never send money to a real person.
+  upi_id: "abcstudio@example",
   auto_pay: null,
   milestones: [
     {

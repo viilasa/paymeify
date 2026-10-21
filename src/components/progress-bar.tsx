@@ -5,14 +5,22 @@ interface ProgressBarProps {
   value: number;
   className?: string;
   tone?: "default" | "success";
+  /** Accessible name, e.g. "Project progress". */
+  label?: string;
 }
 
-export function ProgressBar({ value, className, tone = "default" }: ProgressBarProps) {
+export function ProgressBar({
+  value,
+  className,
+  tone = "default",
+  label = "Progress",
+}: ProgressBarProps) {
   const clamped = Math.min(100, Math.max(0, Math.round(value)));
 
   return (
     <div
       role="progressbar"
+      aria-label={label}
       aria-valuenow={clamped}
       aria-valuemin={0}
       aria-valuemax={100}

@@ -25,20 +25,26 @@ export async function POST(request: NextRequest) {
     id?: string;
     data?: { object?: Record<string, unknown> };
   } | null;
-
-  const object = unverified?.data?.object ?? {};
-  const metadata = (object.metadata ?? {}) as { project_id?: string; milestone_id?: string };
-  const checkoutId = typeof object.id === "string" ? object.id : "";
-  const projectId = await resolveProjectId(checkoutId, metadata.project_id);
-
-  if (!projectId) {
-    console.warn("stripe webhook: could not resolve project");
-    return NextResponse.json({ received: true });
+  if (!unverified || typeof unverified !== "object") {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const owner = await loadCredentialsForProject(projectId, "stripe");
-  if (!owner) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  const object = unverified.data?.object ?? {};
+  const metadata = (object.metadata ?? {}) as { project_id?: string; milestone_id?: string };
+  const checkoutId = typeof object.id === "string" ? object.id : "";
+
+  let projectId: string | null;
+  let owner: Awaited<ReturnType<typeof loadCredentialsForProject>>;
+  try {
+    projectId = await resolveProjectId(checkoutId, metadata.project_id);
+    owner = projectId ? await loadCredentialsForProject(projectId, "stripe") : null;
+  } catch (error) {
+    console.error("stripe webhook: lookup failed", error);
+    return NextResponse.json({ error: "Lookup failed" }, { status: 500 });
+  }
+  if (!projectId || !owner) {
+    // Not a Paymeify checkout, or the owner disconnected Stripe: retrying can't help.
+    return NextResponse.json({ received: true });
   }
 
   let event: Stripe.Event;
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest) {
             typeof session.payment_intent === "string"
               ? session.payment_intent
               : (session.payment_intent?.id ?? null),
-          projectId: session.metadata?.project_id ?? projectId,
+          projectId,
           milestoneId: session.metadata?.milestone_id,
           amountMinor: session.amount_total ?? undefined,
           currency: session.currency?.toUpperCase(),
@@ -87,6 +93,7 @@ export async function POST(request: NextRequest) {
         gateway: "stripe",
         checkoutId: session.id,
         status: "expired",
+        projectId,
         milestoneId: session.metadata?.milestone_id,
       });
     }

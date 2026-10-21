@@ -36,9 +36,18 @@ export default async function ClientPortalPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ paid?: string }>;
+  searchParams: Promise<{
+    paid?: string;
+    /** Dodo appends status=succeeded|failed|cancelled to the return URL. */
+    status?: string;
+    /** Razorpay appends this to a payment link's callback URL. */
+    razorpay_payment_link_status?: string;
+  }>;
 }) {
-  const [{ token }, { paid }] = await Promise.all([params, searchParams]);
+  const [{ token }, query] = await Promise.all([params, searchParams]);
+  const { paid } = query;
+  const gatewayStatus = (query.status ?? query.razorpay_payment_link_status ?? "").toLowerCase();
+  const returnFailed = ["failed", "cancelled", "canceled", "expired"].includes(gatewayStatus);
 
   const view = await getPublicProject(token);
   if (!view) notFound();
@@ -50,6 +59,7 @@ export default async function ClientPortalPage({
       {...view}
       token={token}
       returnedFrom={returnedFrom}
+      returnFailed={returnFailed}
       autoPay={Boolean(view.project.auto_pay)}
     />
   );

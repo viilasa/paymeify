@@ -50,3 +50,16 @@ export function StripeLogo({ className }: { className?: string }) {
     </svg>
   );
 }
+
+export function DodoLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 40 40" className={cn("size-full", className)} aria-hidden>
+      <rect width="40" height="40" rx="9" fill="#0B0B0B" />
+      <path
+        d="M12.5 11.5h7.2c5.3 0 8.8 3.4 8.8 8.5s-3.5 8.5-8.8 8.5h-7.2v-17Zm4.2 3.6v9.8h2.8c2.9 0 4.8-1.9 4.8-4.9s-1.9-4.9-4.8-4.9h-2.8Z"
+        fill="#fff"
+      />
+      <circle cx="29" cy="12" r="2.2" fill="#C6F432" />
+    </svg>
+  );
+}

@@ -4,15 +4,29 @@ import Link from "next/link";
 import { DashboardRefresh } from "@/components/app/dashboard-refresh";
 import { PaymentInbox } from "@/components/app/payment-inbox";
 import { EmptyState } from "@/components/empty-state";
+import { Greeting } from "@/components/local-time";
 import { ProjectList } from "@/components/projects/project-list";
 import { SummaryStats } from "@/components/projects/summary-stats";
 import { Button } from "@/components/ui/button";
 import { displayName, requireSession } from "@/lib/auth";
-import { listPendingPaymentReports, listProjects, summarise } from "@/lib/data/projects";
-import { formatMoney, greeting } from "@/lib/format";
+import {
+  listPendingPaymentReports,
+  listProjects,
+  summarise,
+  type CurrencyTotal,
+} from "@/lib/data/projects";
+import { formatMoney } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
+
+/** One figure per currency, e.g. "₹50,000 + $2,000". */
+function joinTotals(currencies: CurrencyTotal[], key: "outstanding" | "collected"): string {
+  if (currencies.length === 0) return formatMoney(0, "INR");
+  const nonZero = currencies.filter((c) => c[key] > 0);
+  const shown = nonZero.length ? nonZero : currencies.slice(0, 1);
+  return shown.map((c) => formatMoney(c[key], c.currency)).join(" + ");
+}
 
 export default async function DashboardPage() {
   const [{ profile }, projects, reports] = await Promise.all([
@@ -28,7 +42,7 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-[18px] font-medium tracking-tight">
-            {greeting()}, {displayName(profile)}
+            <Greeting />, {displayName(profile)}
           </h1>
           <p className="mt-1 text-[13px] text-muted-foreground">
             Here is where your projects and payments stand.
@@ -48,12 +62,12 @@ export default async function DashboardPage() {
           { label: "Active projects", value: String(summary.activeProjects) },
           {
             label: "Total outstanding",
-            value: formatMoney(summary.outstanding, summary.currency),
+            value: joinTotals(summary.currencies, "outstanding"),
           },
           {
             label: "Collected",
-            value: formatMoney(summary.collected, summary.currency),
-            tone: summary.collected > 0 ? "success" : "default",
+            value: joinTotals(summary.currencies, "collected"),
+            tone: summary.currencies.some((c) => c.collected > 0) ? "success" : "default",
           },
         ]}
       />

@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/pricing",
-        destination: "/#pricing",
+        destination: "/",
         permanent: true,
       },
       {

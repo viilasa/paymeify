@@ -32,7 +32,7 @@ export default function TermsPage() {
         Paymeify is not a bank, payment processor, wallet, marketplace, or
         escrow. We do not collect, hold, or settle client funds. Money moves
         through the payment method you choose — your UPI ID, your Razorpay
-        account, or your Stripe account.
+        account, your Stripe account, or your Dodo Payments account.
       </p>
 
       <h2>2. Your account</h2>
@@ -62,12 +62,14 @@ export default function TermsPage() {
           only. A milestone is unpaid until you confirm it.
         </li>
         <li>
-          Razorpay and Stripe: you paste your own keys. Automatic “paid” status
-          happens only after a signed webhook from that provider.
+          Razorpay, Stripe, and Dodo Payments: you paste your own keys. Automatic
+          “paid” status happens only after a signed webhook from that provider.
+          Dodo Payments is the merchant of record for payments it processes, under
+          its own terms.
         </li>
         <li>
           Paymeify does not take a platform fee. Provider fees are between you
-          and Razorpay or Stripe.
+          and Razorpay, Stripe, or Dodo Payments.
         </li>
         <li>
           Disputes, refunds, chargebacks, and tax invoices are yours to handle
@@ -102,7 +104,7 @@ export default function TermsPage() {
       </p>
       <p>
         Paymeify is currently free to use. We do not take a cut of client payments;
-        gateway fees stay with your bank, Razorpay, or Stripe.
+        gateway fees stay with your bank, Razorpay, Stripe, or Dodo Payments.
       </p>
 
       <h2>8. Disclaimer</h2>
